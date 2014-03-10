@@ -116,22 +116,22 @@ public class DBH2 implements DBConnection {
         stat.execute("CREATE SEQUENCE IF NOT EXISTS seq_topenrecent_id");
         stat.execute("CREATE SEQUENCE IF NOT EXISTS seq_tproject_id");
         stat.execute("CREATE SEQUENCE IF NOT EXISTS seq_treference_id");
-        stat.execute("CREATE INDEX classJavaName ON tclass(cl_javaname)");
-        stat.execute("CREATE INDEX classVbName ON tclass(cl_vbname)");
-        stat.execute("CREATE INDEX packageName ON tclass(cl_packagename)");
-        stat.execute("CREATE INDEX funJavaName ON tfunction(fun_javaname)");
-        stat.execute("CREATE INDEX funVbName ON tfunction(fun_vbname)");
-        stat.execute("CREATE INDEX funDataType ON tfunction(fun_datatype)");
-        stat.execute("CREATE INDEX funClId ON tfunction(cl_id)");
-        stat.execute("CREATE INDEX varJavaName ON tvariable(var_javaname)");
-        stat.execute("CREATE INDEX varVbName ON tvariable(var_vbname)");
-        stat.execute("CREATE INDEX varDataType ON tvariable(var_datatype)");
-        stat.execute("CREATE INDEX varClId ON tvariable(cl_id)");
-        stat.execute("CREATE INDEX varFunId ON tvariable(fun_id)");
-        stat.execute("CREATE INDEX prjName ON tproject(prj_name)");
-        stat.execute("CREATE INDEX prjDllName ON tproject(prj_dllname)");
-        stat.execute("CREATE INDEX refName ON treference(ref_name)");
-        stat.execute("CREATE INDEX refPrjId ON treference(prj_id)");
+        stat.execute("CREATE INDEX IF NOT EXISTS classJavaName ON tclass(cl_javaname)");
+        stat.execute("CREATE INDEX IF NOT EXISTS classVbName ON tclass(cl_vbname)");
+        stat.execute("CREATE INDEX IF NOT EXISTS packageName ON tclass(cl_packagename)");
+        stat.execute("CREATE INDEX IF NOT EXISTS funJavaName ON tfunction(fun_javaname)");
+        stat.execute("CREATE INDEX IF NOT EXISTS funVbName ON tfunction(fun_vbname)");
+        stat.execute("CREATE INDEX IF NOT EXISTS funDataType ON tfunction(fun_datatype)");
+        stat.execute("CREATE INDEX IF NOT EXISTS funClId ON tfunction(cl_id)");
+        stat.execute("CREATE INDEX IF NOT EXISTS varJavaName ON tvariable(var_javaname)");
+        stat.execute("CREATE INDEX IF NOT EXISTS varVbName ON tvariable(var_vbname)");
+        stat.execute("CREATE INDEX IF NOT EXISTS varDataType ON tvariable(var_datatype)");
+        stat.execute("CREATE INDEX IF NOT EXISTS varClId ON tvariable(cl_id)");
+        stat.execute("CREATE INDEX IF NOT EXISTS varFunId ON tvariable(fun_id)");
+        stat.execute("CREATE INDEX IF NOT EXISTS prjName ON tproject(prj_name)");
+        stat.execute("CREATE INDEX IF NOT EXISTS prjDllName ON tproject(prj_dllname)");
+        stat.execute("CREATE INDEX IF NOT EXISTS refName ON treference(ref_name)");
+        stat.execute("CREATE INDEX IF NOT EXISTS refPrjId ON treference(prj_id)");
     }
 
     @Override

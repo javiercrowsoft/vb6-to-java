@@ -2,25 +2,25 @@
 <!DOCTYPE log SYSTEM "logger.dtd">
 <log>
 <record>
-  <date>2013-01-24T13:38:16</date>
-  <millis>1359045496978</millis>
-  <sequence>5</sequence>
+  <date>2014-03-10T16:27:34</date>
+  <millis>1394479654070</millis>
+  <sequence>3</sequence>
   <logger>ar.com.crowsoft.cvxi</logger>
   <level>INFO</level>
   <class>buggymastercode.BuggyMasterCodeApp</class>
   <method>startLog</method>
-  <thread>10</thread>
+  <thread>11</thread>
   <message>initializing BuggyMasterCode</message>
 </record>
 <record>
-  <date>2013-01-24T13:38:16</date>
-  <millis>1359045496978</millis>
-  <sequence>6</sequence>
+  <date>2014-03-10T16:27:34</date>
+  <millis>1394479654071</millis>
+  <sequence>4</sequence>
   <logger>ar.com.crowsoft.cvxi</logger>
   <level>INFO</level>
   <class>buggymastercode.BuggyMasterCodeApp</class>
   <method>startLog</method>
-  <thread>10</thread>
-  <message>running in: /Users/javier/Work/CrowSoft/Java/BuggyMasterCode</message>
+  <thread>11</thread>
+  <message>running in: /Users/javier/Work/CrowSoft/Java/vb6-to-java/BuggyMasterCode</message>
 </record>
 </log>

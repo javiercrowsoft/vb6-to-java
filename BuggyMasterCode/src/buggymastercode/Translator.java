@@ -70,7 +70,7 @@ public class Translator {
     // in the code which references to public member of objects of other
     // classes.
     // public variables are accessed by the dot operator and assigned using the
-    // equal sign (=) eg: "m_objmember.publicVariable = 1;" by the other
+    // equal sign (=) eg: "m_objmember.publicVariable = 1;" on the other
     // hand public properties are translated as setters and getters and the
     // assignment doesn't use the equals sign but the setter method.
     //
