@@ -59,6 +59,10 @@ public class Variable {
             m_javaName = m_javaName.substring(0, 1).toLowerCase() + m_javaName.substring(1);
         }
     }
+    
+    public void setJavaNameWithoutValidate(String name) {
+        m_javaName = name;
+    }
 
     public void setType(String dataType) {
         this.dataType = dataType;

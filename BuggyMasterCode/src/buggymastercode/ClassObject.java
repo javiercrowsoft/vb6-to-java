@@ -99,4 +99,22 @@ public class ClassObject {
             return true;
         }
     }
+    
+    public String getDataTypeOfCollectionItem() {
+
+        String sqlstmt = "select fun_id, fun_vbname, fun_javaname, fun_datatype from tfunction where cl_id <> 0 and cl_id = "
+                            + ((Integer)m_id).toString() ;
+
+        DBRecordSet rs = new DBRecordSet();
+        if (!Db.db.openRs(sqlstmt, rs)) {return "";}
+
+        // print the results
+        for (int i = 0; i < rs.getRows().size(); i++) {
+            
+            if (rs.getRows().get(i).get("fun_vbname").toString().equals("Item")) {
+                return rs.getRows().get(i).get("fun_datatype").toString();
+            }
+        }
+        return "";        
+    }    
 }

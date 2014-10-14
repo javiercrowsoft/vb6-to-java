@@ -784,6 +784,13 @@ public class Translator {
     }
 
     private String translateLine(String strLine) {
+        
+        // debug
+        if (G.beginLike(strLine.trim(), "With m_ObjAbm.Properties(cscProCodigo)")) {
+            int i = 9999;
+        }
+        
+        
         // two kind of sentences
             // In function
             // Declarations
@@ -2922,7 +2929,7 @@ public class Translator {
 
         for (int i = 0; i < words.length; i++) {
             if (!("!\t/*-+ ,.()[]'\"".contains(words[i]))) {
-                info = getIdentifierInfo(words[i], parent, !parent.isEmpty());
+                info = getIdentifierInfo(words[i] + getParameters(words, i), parent, !parent.isEmpty());
                 if (info == null)
                     type = "";
                 else if (info.isFunction) {
@@ -3027,6 +3034,23 @@ public class Translator {
             strLine += words[i];
         }
         return strLine;
+    }
+    
+    private String getParameters(String[] words, int index) {
+        String params = "(";
+        if (words.length-3 > index) {
+            if (words[index+1].equals("(")) {
+                for (int q = index+2; q < words.length; q++) {
+                    if (words[q].equals(")")) {
+                        return params + ")";
+                    }
+                    else {
+                        params += words[q];
+                    }
+                }
+            }
+        }
+        return "";
     }
 
     private String replacePropertySetSentence(String strLine) {
@@ -3365,6 +3389,7 @@ public class Translator {
                     if (m_translateToCairo) {
                         String varName = var.getJavaName();
                         varName = varName.equals("w_add") ? "elem" : varName;
+                        varName = varName.equals("w_item") ? "property" : varName;
                         varName = varName.equals("w_properties") ? "property" : varName;
                         var.setJavaName(varName);
                         strLine = prefix
@@ -3400,6 +3425,7 @@ public class Translator {
                         if (m_translateToCairo) {
                             String varName = var.getJavaName();
                             varName = varName.equals("w_add") ? "elem" : varName;
+                            varName = varName.equals("w_item") ? "property" : varName;
                             varName = varName.equals("w_properties") ? "property" : varName;
                             var.setJavaName(varName);
                             strLine = prefix
@@ -3427,6 +3453,7 @@ public class Translator {
                         if (m_translateToCairo) {
                             String varName = var.getJavaName();
                             varName = varName.equals("w_add") ? "elem" : varName;
+                            varName = varName.equals("w_item") ? "property" : varName;
                             varName = varName.equals("w_properties") ? "property" : varName;
                             var.setJavaName(varName);                            
                             strLine = prefix
@@ -3560,9 +3587,38 @@ public class Translator {
                 info = new IdentifierInfo();
                 info.isFunction = true;
                 info.function = function;
+            
+                if (parametersInCall(identifier)) {
+                    m_classObject.setPackageName(function.getReturnType().packageName);
+                    m_classObject.setVbName(function.getReturnType().dataType);
+                    m_classObject.setJavaName("");
+                    m_classObject.getClassIdFromClassName();
+                    String itemDataType = m_classObject.getDataTypeOfCollectionItem();
+                    if (!itemDataType.isEmpty()) {
+                        Function fun = new Function();
+                        fun.setJavaClassName(function.getReturnType().dataType);
+                        fun.getReturnType().setJavaNameWithoutValidate("getProperties().item");
+                        fun.getReturnType().setVbName("Item");
+                        fun.getReturnType().setType(itemDataType);
+                        info.function = fun;                    
+                    }
+                }
             }
         }
         return info;
+    }
+    
+    private Boolean parametersInCall(String call) {
+        if (call.contains("(")) {
+            if (call.contains(")")) {
+                int i = call.indexOf("(");
+                int j = call.indexOf(")");
+                if(!call.substring(i, j).trim().isEmpty()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private String translateFunctionCall(String strLine) {
