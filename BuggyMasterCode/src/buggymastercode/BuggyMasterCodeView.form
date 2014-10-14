@@ -59,6 +59,8 @@
                                       <Component id="opJava" min="-2" max="-2" attributes="0"/>
                                       <EmptySpace type="separate" max="-2" attributes="0"/>
                                       <Component id="opCSharp" min="-2" max="-2" attributes="0"/>
+                                      <EmptySpace type="separate" max="-2" attributes="0"/>
+                                      <Component id="opCairo" min="-2" max="-2" attributes="0"/>
                                   </Group>
                               </Group>
                           </Group>
@@ -98,6 +100,7 @@
                           <Component id="cmdChooseFolderOutput" alignment="3" min="-2" max="-2" attributes="0"/>
                           <Component id="opJava" alignment="3" min="-2" max="-2" attributes="0"/>
                           <Component id="opCSharp" alignment="3" min="-2" max="-2" attributes="0"/>
+                          <Component id="opCairo" alignment="3" min="-2" max="-2" attributes="0"/>
                       </Group>
                       <EmptySpace type="unrelated" max="-2" attributes="0"/>
                       <Group type="103" groupAlignment="0" attributes="0">
@@ -244,6 +247,15 @@
                 </Property>
                 <Property name="text" type="java.lang.String" resourceKey="opCSharp.text"/>
                 <Property name="name" type="java.lang.String" value="opCSharp" noResource="true"/>
+              </Properties>
+            </Component>
+            <Component class="javax.swing.JRadioButton" name="opCairo">
+              <Properties>
+                <Property name="buttonGroup" type="javax.swing.ButtonGroup" editor="org.netbeans.modules.form.RADComponent$ButtonGroupPropertyEditor">
+                  <ComponentRef name="buttonGroup1"/>
+                </Property>
+                <Property name="text" type="java.lang.String" resourceKey="opCairo.text"/>
+                <Property name="name" type="java.lang.String" value="opCairo" noResource="true"/>
               </Properties>
             </Component>
           </SubComponents>

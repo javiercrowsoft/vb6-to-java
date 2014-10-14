@@ -55,6 +55,9 @@ public class Variable {
         else {
             m_javaName = name;
         }
+        if (m_javaName.length() > 1) {
+            m_javaName = m_javaName.substring(0, 1).toLowerCase() + m_javaName.substring(1);
+        }
     }
 
     public void setType(String dataType) {

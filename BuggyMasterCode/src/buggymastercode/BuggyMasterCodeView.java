@@ -145,6 +145,7 @@ public class BuggyMasterCodeView extends FrameView {
         txOutputFolder = new javax.swing.JTextField();
         opJava = new javax.swing.JRadioButton();
         opCSharp = new javax.swing.JRadioButton();
+        opCairo = new javax.swing.JRadioButton();
         tabMain = new javax.swing.JTabbedPane();
         pnProgress = new javax.swing.JPanel();
         jScrollPane3 = new javax.swing.JScrollPane();
@@ -241,6 +242,11 @@ public class BuggyMasterCodeView extends FrameView {
         buttonGroup1.add(opCSharp);
         opCSharp.setText(resourceMap.getString("opCSharp.text")); // NOI18N
         opCSharp.setName("opCSharp"); // NOI18N
+        
+        buttonGroup1.add(opCairo);
+        opCairo.setSelected(true);
+        opCairo.setText(resourceMap.getString("opCairo.text")); // NOI18N
+        opCairo.setName("opCairo"); // NOI18N
 
         javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
         jPanel1.setLayout(jPanel1Layout);
@@ -271,9 +277,12 @@ public class BuggyMasterCodeView extends FrameView {
                                 .addGap(18, 18, 18)
                                 .addComponent(cmdCancel, javax.swing.GroupLayout.PREFERRED_SIZE, 80, javax.swing.GroupLayout.PREFERRED_SIZE))
                             .addGroup(jPanel1Layout.createSequentialGroup()
-                                .addComponent(opJava)
+                                .addComponent(opCairo)
                                 .addGap(18, 18, 18)
-                                .addComponent(opCSharp))))
+                                .addComponent(opCSharp)
+                                .addGap(18, 18, 18)
+                                .addComponent(opJava)
+                                )))
                     .addGroup(jPanel1Layout.createSequentialGroup()
                         .addContainerGap()
                         .addComponent(jLabel2, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
@@ -305,7 +314,8 @@ public class BuggyMasterCodeView extends FrameView {
                     .addComponent(txOutputFolder, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(cmdChooseFolderOutput)
                     .addComponent(opJava)
-                    .addComponent(opCSharp))
+                    .addComponent(opCSharp)
+                    .addComponent(opCairo))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addComponent(jLabel2, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
@@ -481,6 +491,53 @@ public class BuggyMasterCodeView extends FrameView {
         setStatusBar(statusPanel);
     }// </editor-fold>//GEN-END:initComponents
 
+    
+    // Variables declaration - do not modify                                                               
+    private javax.swing.ButtonGroup buttonGroup1;
+    private javax.swing.JComboBox cbFiles;
+    private javax.swing.JComboBox cbProject;
+    private javax.swing.JButton cmdCancel;
+    private javax.swing.JButton cmdChooseFile;
+    private javax.swing.JButton cmdChooseFolderOutput;
+    private javax.swing.JButton cmdTranslate;
+    private javax.swing.JMenuItem dictionaryMenu;
+    private javax.swing.JLabel jLabel1;
+    private javax.swing.JLabel jLabel2;
+    private javax.swing.JLabel jLabel3;
+    private javax.swing.JLabel jLabel4;
+    private javax.swing.JMenu jMenu1;
+    private javax.swing.JMenuItem jMenuItem1;
+    private javax.swing.JPanel jPanel1;
+    private RTextScrollPane jScrollPane1;
+    private RTextScrollPane jScrollPane2;
+    private javax.swing.JScrollPane jScrollPane3;
+    private javax.swing.JScrollPane jScrollPane4;
+    private javax.swing.JScrollPane jScrollPane5;
+    private javax.swing.JSplitPane jSplitPane1;
+    private javax.swing.JLabel lbPackage;
+    private javax.swing.JList lsFiles;
+    private javax.swing.JList lsJavaSource;
+    private javax.swing.JList lsVbSource;
+    private javax.swing.JPanel mainPanel;
+    private javax.swing.JMenuBar menuBar;
+    private javax.swing.JRadioButton opCSharp;
+    private javax.swing.JRadioButton opJava;
+    private javax.swing.JRadioButton opCairo;
+    private javax.swing.JSplitPane pnCode;
+    private javax.swing.JPanel pnProgress;
+    private javax.swing.JMenuItem preferencesMenu;
+    private javax.swing.JProgressBar progressBar;
+    private javax.swing.JLabel statusAnimationLabel;
+    private javax.swing.JLabel statusMessageLabel;
+    private javax.swing.JPanel statusPanel;
+    private javax.swing.JTabbedPane tabMain;
+    private javax.swing.JMenu toolMenu;
+    private javax.swing.JTextField txOutputFolder;
+    private RSyntaxTextArea txSourceCode;
+    private RSyntaxTextArea txSourceCodeJava;
+    // End of variables declaration                   
+    
+    
     @Action
     public void showChooseFileDialog() {
         if (chooserFile == null) {
@@ -537,13 +594,15 @@ public class BuggyMasterCodeView extends FrameView {
                 tabMain.setSelectedComponent(pnProgress);
 
                 boolean translateToJava = opJava.isSelected();
+                boolean translateToCairo = opCairo.isSelected();
                 
                 TranslatorWorker tw = new TranslatorWorker(
                                                 this, 
                                                 m_path, 
                                                 vbpFile, 
                                                 m_collFiles,
-                                                translateToJava);
+                                                translateToJava,
+                                                translateToCairo);
                 tw.execute();
             }
         }
@@ -894,49 +953,7 @@ public class BuggyMasterCodeView extends FrameView {
         BuggyMasterCodeApp.getApplication().show(preferences);
     }
 
-    // Variables declaration - do not modify                     
-    private javax.swing.ButtonGroup buttonGroup1;
-    private javax.swing.JComboBox cbFiles;
-    private javax.swing.JComboBox cbProject;
-    private javax.swing.JButton cmdCancel;
-    private javax.swing.JButton cmdChooseFile;
-    private javax.swing.JButton cmdChooseFolderOutput;
-    private javax.swing.JButton cmdTranslate;
-    private javax.swing.JMenuItem dictionaryMenu;
-    private javax.swing.JLabel jLabel1;
-    private javax.swing.JLabel jLabel2;
-    private javax.swing.JLabel jLabel3;
-    private javax.swing.JLabel jLabel4;
-    private javax.swing.JMenu jMenu1;
-    private javax.swing.JMenuItem jMenuItem1;
-    private javax.swing.JPanel jPanel1;
-    private RTextScrollPane jScrollPane1;
-    private RTextScrollPane jScrollPane2;
-    private javax.swing.JScrollPane jScrollPane3;
-    private javax.swing.JScrollPane jScrollPane4;
-    private javax.swing.JScrollPane jScrollPane5;
-    private javax.swing.JSplitPane jSplitPane1;
-    private javax.swing.JLabel lbPackage;
-    private javax.swing.JList lsFiles;
-    private javax.swing.JList lsJavaSource;
-    private javax.swing.JList lsVbSource;
-    private javax.swing.JPanel mainPanel;
-    private javax.swing.JMenuBar menuBar;
-    private javax.swing.JRadioButton opCSharp;
-    private javax.swing.JRadioButton opJava;
-    private javax.swing.JSplitPane pnCode;
-    private javax.swing.JPanel pnProgress;
-    private javax.swing.JMenuItem preferencesMenu;
-    private javax.swing.JProgressBar progressBar;
-    private javax.swing.JLabel statusAnimationLabel;
-    private javax.swing.JLabel statusMessageLabel;
-    private javax.swing.JPanel statusPanel;
-    private javax.swing.JTabbedPane tabMain;
-    private javax.swing.JMenu toolMenu;
-    private javax.swing.JTextField txOutputFolder;
-    private RSyntaxTextArea txSourceCode;
-    private RSyntaxTextArea txSourceCodeJava;
-    // End of variables declaration                   
+                                          
 
     private final Timer messageTimer;
     private final Timer busyIconTimer;

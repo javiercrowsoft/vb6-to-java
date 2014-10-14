@@ -345,7 +345,7 @@ public class FunctionDialog extends javax.swing.JDialog {
 
             String sqlstmt = "select var_id, var_vbname, var_javaname, " 
                                 + "var_datatype, var_isparameter, var_ispublic "
-                                + "from tvariable where fun_id = "
+                                + "from tvariable where fun_id <> 0 and fun_id = "
                                 + ((Integer)m_id).toString() ;
 
             DBRecordSet rs = new DBRecordSet();
