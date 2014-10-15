@@ -188,9 +188,50 @@ public class Translator {
     // to translate On Error
     //
     private boolean m_onErrorFound = false;
-    private boolean m_onErrorResumeNext = false;
     private String m_onErrorLabel = "";
     private boolean m_onCatchBlock = false;
+    private boolean m_catchBlockIsOpen = false;
+    
+    private String[] m_cairoNames = {  "cIABMClient_EditNew", "editNew", 
+                            "getCIABMClient_Aplication", "getApplication",
+                            "getCIABMClient_CanAddDocDigital", "editDocumentsEnabled",
+                            "getCIABMClient_CanCopy", "copyEnabled",
+                            "getCIABMClient_CanNew", "addEnabled",
+                            "cIABMClient_ShowDocDigital", "showDocDigital",
+                            "cIABMClient_MessageEx", "messageEx",
+                            "cIABMClient_DiscardChanges", "discardChanges",
+                            "cIABMClient_ListAdHock", "_REMOVE_",
+                            "cIABMClient_Load", "_REMOVE_",
+                            "cIABMClient_PropertyChange", "propertyChange",
+                            "cIABMClient_Save", "save",
+                            "cIABMClient_Terminate", "terminate",
+                            "cIABMClient_Copy", "copy",
+                            "getCIABMClient_Title", "title",
+                            "cIABMClient_Validate", "validate",
+                            "getCIEditGeneric_ObjAbm", "getDialog",
+                            "setCIEditGeneric_TreeId", "setTreeId",
+                            "getCIEditGeneric_TreeId", "getTreeId",
+                            "cIEditGeneric_GridAdd", "_REMOVE_",
+                            "cIEditGeneric_GridEdit", "_REMOVE_",
+                            "cIEditGeneric_GridRemove", "_REMOVE_",
+                            "cIEditGeneric_ShowList", "list",
+                            "setCIEditGeneric_ObjAbm", "setDialog",
+                            "getCIEditGeneric_Editing", "isEditing",
+                            "cIEditGeneric_Delete", "delete",
+                            "cIEditGeneric_Search", "_REMOVE_",
+                            "cIEditGeneric_Edit", "edit",
+                            "cIEditGeneric_PrintObj", "_REMOVE_",
+                            "setCIEditGeneric_ObjTree", "setTree",
+                            "cIEditGeneric_PropertyChange", "_REMOVE_",
+                            "setCIEditGeneric_BranchId", "setBranchId",
+                            "getCIEditGeneric_BranchId", "getBranchId",
+                            "cIEditGeneric_TabClick", "_REMOVE_",
+                            "cIEditGeneric_Preview", "_REMOVE_",
+                            "cIMenuClient_Initialize", "_REMOVE_",
+                            "cIMenuClient_ProcessMenu", "_REMOVE_",
+                            "class_Terminate", "destroy",
+                            "class_Initialize", "initialize" };
+    
 
     public Translator() {
         
@@ -786,10 +827,11 @@ public class Translator {
     private String translateLine(String strLine) {
         
         // debug
+        /*
         if (G.beginLike(strLine.trim(), "With m_ObjAbm.Properties(cscProCodigo)")) {
             int i = 9999;
         }
-        
+        */
         
         // two kind of sentences
             // In function
@@ -840,7 +882,9 @@ public class Translator {
             }
             else if (m_inFunction) {
                 checkEndBlock(strLine);
-                String rtn = getTabs() + translateLineInFunction(strLine);
+                String line = translateLineInFunction(strLine);
+                String tabs = getTabs();
+                String rtn = tabs + line;
                 checkBeginBlock(strLine);
                 return rtn;
             }
@@ -1129,10 +1173,12 @@ public class Translator {
         
         // debug
         //  
-        
+        /*
         if (strLine.contains("pIsSeparator(")) {
             int i = 9999;
         }
+         * 
+         */
          /* 
          */
         // debug
@@ -1214,7 +1260,7 @@ public class Translator {
             else {
                 if (isEndFunction(workLine)) {
                     String onErrorLabelNotFound = checkOnErrorLabelFound();
-                    String endOfPreviousOnError = getEndOfPreviousOnError(C_TAB);
+                    String endOfPreviousOnError = getEndOfPreviousOnError();
                     String javaScript = m_translateToCairo ? ";" : "";
                     strLine = onErrorLabelNotFound
                                 + endOfPreviousOnError
@@ -1457,7 +1503,6 @@ public class Translator {
         // On Error flag is reset in every function
         //
         m_onErrorFound = false;
-        m_onErrorResumeNext = false;
         m_onErrorLabel = "";
         m_onCatchBlock = false;
 
@@ -1507,7 +1552,15 @@ public class Translator {
                  */
                 
                 if (m_parseToCairo) {
+                    if (functionIsPublicInterface(javaName)){
+                        if (words[0].equals("private")) {
+                            words[0] = "public";
+                        }                            
+                    }
                     javaName = translateFunctionNameToCairo(javaName);
+                    if (words[0].equals("public")) {
+                        javaName = "self." + javaName;
+                    }
                 }
                 function.getReturnType().setJavaName(javaName);        
                 
@@ -1525,6 +1578,17 @@ public class Translator {
     }
 
     private void parsePublicMember(String strLine) {
+        
+        // debug
+        /*
+        if (strLine.contains("cscActivo")) {
+            int i = 9999;
+        }
+        
+        if (strLine.contains("Debe comunicarse")) {
+            int i = 9999;
+        }
+        */
         
         // get out spaces even tabs
         //
@@ -1547,6 +1611,12 @@ public class Translator {
         if (workLine.length() > 7) {
             if (workLine.substring(0,7).equals("public ")) {
                 if (workLine.contains(" const ")) {
+                    try {
+                        parsePublicConstMember(strLine);
+                    }
+                    catch(Exception e) {
+                        // ignored
+                    }
                     return;
                 }
                 else if (workLine.contains(" event ")) {
@@ -1607,6 +1677,103 @@ public class Translator {
                 }
             }
         }
+    }
+    
+    private void parsePublicConstMember(String strLine) {
+        // form is
+            // dim variable_name as data_type
+        strLine = strLine.trim();
+        String[] words = G.splitSpace(strLine);//strLine.split("\\s+");
+        String dataType = "";
+        String identifier = "";
+        String constValue = "";
+        String misc = "";
+        
+        
+        // debug
+        /*
+        if (identifier.equals("cscActivo")) {
+            int i = 9999;
+        } 
+         * 
+         */
+
+        if (words.length > 2) {
+            identifier = words[2];
+            if (words.length >= 6) {
+                if (words[4].equals("=")) {
+                    dataType = words[3];
+                    constValue = words[5];                    
+                    for (int i = 6; i < words.length; i++) {
+                        misc += " " + words[i];
+                    }                
+                }
+                else {
+                    if (words.length >= 7) {
+                        if (words[5].equals("=")) {
+                            dataType = words[4];
+                            constValue = words[6];                    
+                            for (int i = 7; i < words.length; i++) {
+                                misc += " " + words[i];
+                            }                            
+                        }                        
+                    }
+                    else {
+                        for (int i = 5; i < words.length; i++) {
+                            misc += " " + words[i];
+                        }
+                    }
+                }
+            }
+            else {
+                return;
+            }
+        }
+        else {
+            return;
+        }
+        if (dataType.isEmpty()) {
+            if (constValue.charAt(0) == '"') {
+                dataType = "String";
+            }
+            else if (constValue.charAt(0) == '#'){
+                dataType = "Date";
+            }
+            else if (C_NUMBERS.contains(String.valueOf(constValue.charAt(0)))){
+                dataType = "int";
+            }
+            else if (constValue.substring(0,2).equalsIgnoreCase("&h")) {
+                dataType = "int";
+                constValue = "0x" + constValue.substring(2);
+            }
+            else {
+                IdentifierInfo info = null;
+                info = getIdentifierInfo(constValue, "", false);
+                if (info != null) {
+                    if (info.isFunction)
+                        dataType = info.function.getReturnType().dataType;
+                    else
+                        dataType = info.variable.dataType;
+                }
+                else {
+                    return;
+                }
+            }
+        }
+
+        String vbIdentifier = identifier;
+        identifier = identifier.toUpperCase();
+
+        Variable var = new Variable();
+        var.setVbName(vbIdentifier);
+        var.setJavaName(identifier);
+        var.className = m_javaClassName;
+        var.packageName = m_packageName;
+        var.setType(dataType);
+        var.isPublic = true;
+        var.isArray = false;
+        var.isEventGenerator = false;
+        m_publicVariables.add(var);
     }
 
     private boolean isCaseSentence(String strLine) {
@@ -2100,6 +2267,11 @@ public class Translator {
         }
         else {
             javaSentenceIf = translateSentence(javaSentenceIf);
+            if (m_translateToCairo) {
+                if (javaSentenceBlock.trim().equals("Resume ExitProc")) {
+                    return "";
+                }
+            }
             javaSentenceBlock = translateSentenceWithColon(G.ltrimTab(javaSentenceBlock));
             // if "one line if" sentence in vb became two or more sentence
             // we have to add a tab after every \n to keep the if
@@ -2121,16 +2293,19 @@ public class Translator {
     }
 
     private String translateElseIfSentence(String strLine) {
+        /*
         if (m_wasSingleLineIf) {
             return "else " + translateIfSentence(strLine);
         }
         else {
+         * 
+         */
             return "} "
                     + newline
                     + getTabs()
                     + "else "
                     + translateIfSentence(strLine);
-        }
+        //}
     }
 
     private String translateElseSentence(String strLine) {
@@ -2147,13 +2322,16 @@ public class Translator {
                                 + translateSentenceWithColon(G.ltrimTab(strLine.substring(4)))
                                 + " }";
         }
-        if (m_wasSingleLineIf) {
+        /*
+         * if (m_wasSingleLineIf) {
             return "else {"
                     + javaSentenceBlock
                     + comments
                     + newline;
         }
         else {
+         * 
+         */
             return "} "
                     + newline
                     + getTabs()
@@ -2161,7 +2339,7 @@ public class Translator {
                     + javaSentenceBlock
                     + comments
                     + newline;
-        }
+        //}
     }
 
     private String translateEndIfSentence(String strLine) {
@@ -2472,14 +2650,26 @@ public class Translator {
         if (eachFound) {
             collection = translateSentence(collection.trim());
             Variable varIterator = getVariable(iterator.trim());
-            return "for (int " + m_iterators[m_iteratorIndex] + " = 0;"
-                            + " " + m_iterators[m_iteratorIndex] + " < "
-                            + collection + ".size();"
-                            + " " + m_iterators[m_iteratorIndex] + "++) {"
-                            + comments + newline
-                            + getTabs() + C_TAB
-                            + varIterator.getJavaName() + " = " + collection 
-                            + ".getItem(" + m_iterators[m_iteratorIndex] + ");" + newline;
+            String dataType = "int";
+            String varCount = "";
+            String varCountDeclaration = "";
+            if (m_translateToCairo) {
+                varCountDeclaration = "var _count = " + collection + ".size();\n" + getTabs();
+                varCount = "_count;";
+                dataType = "var";
+            }
+            else {
+                varCount = collection + ".size();";
+            }
+            return varCountDeclaration 
+                        + "for (" + dataType + " " + m_iterators[m_iteratorIndex] + " = 0;"
+                        + " " + m_iterators[m_iteratorIndex] + " < "
+                        + varCount
+                        + " " + m_iterators[m_iteratorIndex] + "++) {"
+                        + comments + newline
+                        + getTabs() + C_TAB
+                        + varIterator.getJavaName() + " = " + collection 
+                        + ".getItem(" + m_iterators[m_iteratorIndex] + ");" + newline;
         }
         else {
 
@@ -2566,11 +2756,15 @@ public class Translator {
             return "";
     }
 
-    private String getEndOfPreviousOnError(String tabs) {
-        if (m_onErrorFound) 
-            return tabs + "}" + newline + getTabs();
-        else
+    private String getEndOfPreviousOnError() {
+        if (m_onErrorFound || m_catchBlockIsOpen) {
+            m_catchBlockIsOpen = false;
+            m_tabCount--;            
+            return "}" + newline + getTabs();
+        }
+        else {
             return "";
+        }
     }
 
     private String translateOnErrorSentence(String strLine) {
@@ -2579,7 +2773,6 @@ public class Translator {
         // On Error Goto 0
         //
         String onErrorLabelNotFound = checkOnErrorLabelFound();
-        m_onErrorResumeNext = false;
         m_onErrorLabel = "";
         String comments = "";
         int startComment = getStartComment(strLine);
@@ -2592,16 +2785,20 @@ public class Translator {
 
         String trySentence = "";
         if (strLine.equalsIgnoreCase("Resume next")) {
-            m_onErrorResumeNext = true;
-            m_onErrorFound = false;
-            trySentence = "try {";
+            if (m_translateToCairo) {
+                //m_onErrorFound = false;
+                trySentence = "// **TODO:** on error resume next found !!!";                        
+            }
+            else {
+                trySentence = "try {";            
+            }
         }
         else if (G.beginLike(strLine, "GoTo")) {
             m_onErrorLabel = strLine.substring(5).trim() + ":";
             trySentence = "try {";
         }
 
-        String endOfPreviousOnError = getEndOfPreviousOnError("");
+        String endOfPreviousOnError = getEndOfPreviousOnError();
 
         return endOfPreviousOnError
                 + onErrorLabelNotFound
@@ -2616,7 +2813,14 @@ public class Translator {
         if (startComment >= 0) {
             comments =  " //" + strLine.substring(startComment);
         }
-        return "} catch (Exception ex) {" + comments + newline;
+        m_onErrorFound = false;
+        m_catchBlockIsOpen = true;
+        if (m_translateToCairo) {
+            return "}\n" + getTabs() + "catch (ex) {" + comments + newline;
+        }
+        else {
+            return "} catch (Exception ex) {" + comments + newline;
+        }
     }
 
     private String translateSentenceWithNewLine(String strLine) {
@@ -3574,6 +3778,12 @@ public class Translator {
         //      -- first objects in this package then objects in
         //         other packages in the order set in the vbp's
         //         reference list
+
+        // debug
+        if (identifier.equals("cscActivo")) {
+            int i = 9999;
+        }
+            
         IdentifierInfo info = null;
         Variable var = getVariable(identifier, className, isField);
         if (var != null) {
@@ -6440,7 +6650,6 @@ public class Translator {
         // On Error flag is reset in every function
         //
         m_onErrorFound = false;
-        m_onErrorResumeNext = false;
         m_onErrorLabel = "";
         m_onCatchBlock = false;
 
@@ -6593,6 +6802,9 @@ public class Translator {
                         + functionName.substring(1);
         
         if (m_translateToCairo) {
+            if (functionIsPublicInterface(functionName)){
+                functionScope = "public";
+            }            
             functionName = translateFunctionNameToCairo(functionName);
             m_inRemoveFunction = functionName.equals("_REMOVE_");
         }
@@ -6670,7 +6882,7 @@ public class Translator {
     private String getReturnLine() {
         String returnLine = "";
         if (m_function.getNeedReturnVariable()) {
-            returnLine = "    return _rtn;" + newline + getTabs();
+            returnLine = "\n" + getTabs() + C_TAB + "return _rtn;" + newline + getTabs();
         }
         return returnLine;
     }
@@ -6692,14 +6904,14 @@ public class Translator {
 
     private String replaceGotoSentence(String strLine) {
         if (G.beginLike(strLine.trim(), "GoTo "))
-            return "/**TODO:** goto found: " + strLine + "*/";
+            return "// **TODO:** goto found: " + strLine;
         else
             return strLine;
     }
 
     private String replaceLabelSentence(String strLine) {
         if (strLine.trim().endsWith(":"))
-            return "/**TODO:** label found: " + strLine + "*/";
+            return "// **TODO:** label found: " + strLine;
         else
             return strLine;
     }
@@ -7388,27 +7600,41 @@ public class Translator {
         String identifier = "";
         String constValue = "";
         String misc = "";
-
+        
+        
+        // debug
+        /*
+        if (identifier.equals("cscActivo")) {
+            int i = 9999;
+        }        
+         * 
+         * 
+         */
         if (words.length > 2) {
             identifier = words[2];
-            if (words.length >= 4) {
+            if (words.length >= 6) {
                 if (words[4].equals("=")) {
-                    if (words.length > 4) {
-                        dataType = words[4];
-                    }
-                    if (words.length >= 5) {
-                        constValue = words[5];
-                    }
+                    dataType = words[3];
+                    constValue = words[5];                    
                     for (int i = 6; i < words.length; i++) {
                         misc += " " + words[i];
-                    }
+                    }                
                 }
                 else {
-                    if (words.length >= 4) {
-                        constValue = words[4];
+                    if (words.length >= 7) {
+                        if (words[5].equals("=")) {
+                            dataType = words[4];
+                            constValue = words[6];                    
+                            for (int i = 7; i < words.length; i++) {
+                                misc += " " + words[i];
+                            }
+                            
+                        }
                     }
-                    for (int i = 5; i < words.length; i++) {
-                        misc += " " + words[i];
+                    else {
+                        for (int i = 5; i < words.length; i++) {
+                            misc += " " + words[i];
+                        }
                     }
                 }
             }
@@ -7467,8 +7693,21 @@ public class Translator {
         }
         else {
 
-            return "public const " + dataType + " " + identifier + " = "
+            String rtn = "public const " + dataType + " " + identifier + " = "
                     + constValue + ";" + misc + newline;
+            
+            if (m_translateToCairo) {
+                if (G.beginLike(rtn, "public const String CSC")) {
+                    rtn = identifier.substring(3) + ": "
+                        + constValue + "," + misc + newline;
+                }
+                else if (G.beginLike(rtn, "public const String CST")) {
+                    rtn = identifier.substring(3) + ": "
+                        + constValue + "," + misc + newline;
+                }
+            }        
+            
+            return rtn;
         }
     }
 
@@ -7847,7 +8086,6 @@ public class Translator {
         m_function = null;
         m_isBasFile = false;
         m_onErrorFound = false;
-        m_onErrorResumeNext = false;
         m_onErrorLabel = "";
         m_onCatchBlock = false;
 
@@ -8401,8 +8639,16 @@ public class Translator {
         // On error
         //
         else if (G.beginLike(strLine, "On Error ")) {
-            m_tabCount++;
-            m_onErrorFound = true;
+            if (m_translateToCairo) {
+                if (!G.beginLike(strLine.trim(), "On Error Resume Next")) {
+                    m_tabCount++;
+                    m_onErrorFound = true;                    
+                }
+            }
+            else {
+                m_tabCount++;
+                m_onErrorFound = true;
+            }
         }
     }
 
@@ -8829,49 +9075,9 @@ public class Translator {
     }
     
     private String translateFunctionNameToCairo(String name) {
-        String[] names = {  "cIABMClient_EditNew", "editNew", 
-                            "getCIABMClient_Aplication", "getApplication",
-                            "getCIABMClient_CanAddDocDigital", "editDocumentsEnabled",
-                            "getCIABMClient_CanCopy", "copyEnabled",
-                            "getCIABMClient_CanNew", "addEnabled",
-                            "cIABMClient_ShowDocDigital", "showDocDigital",
-                            "cIABMClient_MessageEx", "messageEx",
-                            "cIABMClient_DiscardChanges", "discardChanges",
-                            "cIABMClient_ListAdHock", "_REMOVE_",
-                            "cIABMClient_Load", "_REMOVE_",
-                            "cIABMClient_PropertyChange", "propertyChange",
-                            "cIABMClient_Save", "save",
-                            "cIABMClient_Terminate", "terminate",
-                            "cIABMClient_Copy", "copy",
-                            "getCIABMClient_Title", "title",
-                            "cIABMClient_Validate", "validate",
-                            "getCIEditGeneric_ObjAbm", "getDialog",
-                            "setCIEditGeneric_TreeId", "setTreeId",
-                            "getCIEditGeneric_TreeId", "getTreeId",
-                            "cIEditGeneric_GridAdd", "_REMOVE_",
-                            "cIEditGeneric_GridEdit", "_REMOVE_",
-                            "cIEditGeneric_GridRemove", "_REMOVE_",
-                            "cIEditGeneric_ShowList", "list",
-                            "setCIEditGeneric_ObjAbm", "setDialog",
-                            "getCIEditGeneric_Editing", "isEditing",
-                            "cIEditGeneric_Delete", "delete",
-                            "cIEditGeneric_Search", "_REMOVE_",
-                            "cIEditGeneric_Edit", "edit",
-                            "cIEditGeneric_PrintObj", "_REMOVE_",
-                            "setCIEditGeneric_ObjTree", "setTree",
-                            "cIEditGeneric_PropertyChange", "_REMOVE_",
-                            "setCIEditGeneric_BranchId", "setBranchId",
-                            "getCIEditGeneric_BranchId", "getBranchId",
-                            "cIEditGeneric_TabClick", "_REMOVE_",
-                            "cIEditGeneric_Preview", "_REMOVE_",
-                            "cIMenuClient_Initialize", "_REMOVE_",
-                            "cIMenuClient_ProcessMenu", "_REMOVE_",
-                            "class_Terminate", "destroy",
-                            "class_Initialize", "initialize" };
-        
-        for (int i=0; i < names.length -1; i += 2) {
-            if(name.equals(names[i])) {
-                name = names[i+1];
+        for (int i=0; i < m_cairoNames.length -1; i += 2) {
+            if(name.equals(m_cairoNames[i])) {
+                name = m_cairoNames[i+1];
                 break;
             }
         }
@@ -8879,16 +9085,40 @@ public class Translator {
         return name;
     }
     
+    private Boolean functionIsPublicInterface(String name) {
+        for (int i=0; i < m_cairoNames.length -1; i += 2) {
+            if(name.equals(m_cairoNames[i])) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
     private String replaceCairoNames(String strLine) {
-        return strLine.replaceAll("mPublic.gDB", "Cairo.Database");
+        strLine = strLine.replaceAll("mPublic.gDB", "Cairo.Database");
+        strLine = strLine.replaceAll("Constantes.cSC", "Constantes.");
+        strLine = strLine.replaceAll("mConstantes", "Cairo.Const");
+        strLine = strLine.replaceAll("mGeneralConstantes", "Cairo.General.Const");
+        return strLine;
     }
     
     private String addJavaScriptHeader() {
-        return "(function() {\n  use strict;\n\n";
+        String header = "(function() {\n  \"use strict\";\n\n";
+        header += "  Cairo.module(\"" + m_javaClassName.substring(1) + ".Edit\", function(Edit, Cairo, Backbone, Marionette, $, _) {\n";
+        header += "    Edit.Controller = createObject();\n\n";
+        header += "    var createObject = function() {\n\n";
+        header += "      var self = {};\n";
+        m_tabCount += 2;
+        return header;
     };
     
     private String addJavaScriptFooter() {
-        return "\n}());";
+        String footer = "\n      return self;\n";
+        footer += "    };\n\n";
+        footer += "  })\n\n";
+        footer += "}());";
+        return footer;
     }
     
     private String removeCairoLines(String strLine) {
