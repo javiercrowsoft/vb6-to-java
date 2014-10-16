@@ -230,7 +230,10 @@ public class Translator {
                             "cIMenuClient_Initialize", "_REMOVE_",
                             "cIMenuClient_ProcessMenu", "_REMOVE_",
                             "class_Terminate", "destroy",
-                            "class_Initialize", "initialize" };
+                            "class_Initialize", "initialize",
+                            "iProperty", "property"};
+    
+    private String[] m_cairoVarNames = {"iProperty", "property"};
     
 
     public Translator() {
@@ -883,8 +886,11 @@ public class Translator {
             else if (m_inFunction) {
                 checkEndBlock(strLine);
                 String line = translateLineInFunction(strLine);
-                String tabs = getTabs();
-                String rtn = tabs + line;
+                String rtn = "";
+                if (!line.isEmpty()) {
+                    String tabs = getTabs();
+                    rtn = tabs + line;                
+                }
                 checkBeginBlock(strLine);
                 return rtn;
             }
@@ -2056,13 +2062,21 @@ public class Translator {
         boolean parenthesesClosed = false;
         boolean isCaseElse = false;
         String[] words = G.split(strLine);
+        
+        
+        // debug
+        if (strLine.toUpperCase().contains("K_NOMBRE")) {
+            int i = 9999;
+        }
+         
+        
 
         if (m_isFirstCase) {
             m_isFirstCase = false;
             switchStatetment = "case ";
         }
         else {
-            switchStatetment = "    break;" + newline + getTabs();
+            switchStatetment = "  break;\n\n" + getTabs();
             if (G.beginLike(strLine, "case else")) {
                 switchStatetment += "default ";
                 isCaseElse = true;
@@ -2100,9 +2114,12 @@ public class Translator {
         }
         if (!parenthesesClosed) {
             if (isCaseElse)
-                switchStatetment = switchStatetment.trim() + ":";
+                switchStatetment = G.rtrim(switchStatetment) + ":";
             else
                 switchStatetment += ":";
+        }
+        if (!G.endLike(switchStatetment.trim(), "default:")) {
+            switchStatetment = replaceVbNameWithJavaName(switchStatetment);
         }
         return switchStatetment + newline;
     }
@@ -2359,10 +2376,10 @@ public class Translator {
         if (startComment >= 0) {
             String comments = "";
             comments =  "//" + strLine.substring(startComment);
-            return "        break;" + newline + getTabs() + "} " + comments + newline;
+            return "    break;" + newline + getTabs() + "} " + comments + newline;
         }
         else {
-            return "        break;" + newline + getTabs() + "}" + newline;
+            return "    break;" + newline + getTabs() + "}" + newline;
         }
     }
 
@@ -3121,18 +3138,26 @@ public class Translator {
     }
 
     private String replaceVbNameWithJavaName(String strLine) {
+
+        // debug
+        /*
+        if (strLine.toUpperCase().contains("MSG_DOC_INFO")) {
+            int i = 9999;
+        }
+         * 
+         */
         
         IdentifierInfo info = null;
         String type = "";
         String parent = "";
-        String[] words = G.split2(strLine, "!\t/*-+ ,.()[]");
+        String[] words = G.split2(strLine, "!\t/*-+ ,.()[]:");
         strLine = "";
         String[] parents = new String[30]; // why 30? who nows :P, 30 should be enough :)
         int openParentheses = 0;
         boolean previousWasPeriod = false;
 
         for (int i = 0; i < words.length; i++) {
-            if (!("!\t/*-+ ,.()[]'\"".contains(words[i]))) {
+            if (!("!\t/*-+ ,.()[]'\":".contains(words[i]))) {
                 info = getIdentifierInfo(words[i] + getParameters(words, i), parent, !parent.isEmpty());
                 if (info == null)
                     type = "";
@@ -3780,9 +3805,12 @@ public class Translator {
         //         reference list
 
         // debug
-        if (identifier.equals("cscActivo")) {
+        /*
+        if (G.beginLike(identifier.trim(),"MSG_DOC_INFO")) {
             int i = 9999;
         }
+         * 
+         */
             
         IdentifierInfo info = null;
         Variable var = getVariable(identifier, className, isField);
@@ -7237,6 +7265,10 @@ public class Translator {
             vbParamName = vbParamName.substring(0, vbParamName.length()-2);
         }
 
+        if (m_translateToCairo) {
+            paramName = translateVarNameToCairo(paramName);
+        }
+        
         Variable var = new Variable();
         var.setJavaName(paramName);
         var.setVbName(vbParamName);
@@ -7501,7 +7533,7 @@ public class Translator {
 
         Variable var = new Variable();
         var.setVbName(vbIdentifier);
-        var.setJavaName(identifier);
+        var.setJavaConstantName(identifier);
         var.setType(dataType);
         m_memberVariables.add(var);
 
@@ -7680,7 +7712,7 @@ public class Translator {
 
         Variable var = new Variable();
         var.setVbName(vbIdentifier);
-        var.setJavaName(identifier);
+        var.setJavaConstantName(identifier);
         var.setType(dataType);
         m_memberVariables.add(var);
 
@@ -7994,6 +8026,10 @@ public class Translator {
         }
         dataType = getDataType(dataType);
 
+        if (m_translateToCairo) {
+            identifier = translateVarNameToCairo(identifier);
+        }
+        
         Variable var = new Variable();
         var.setJavaName(identifier);
         var.setVbName(vbIdentifier);
@@ -9085,6 +9121,17 @@ public class Translator {
         return name;
     }
     
+    private String translateVarNameToCairo(String name) {
+        for (int i=0; i < m_cairoVarNames.length -1; i += 2) {
+            if(name.equals(m_cairoVarNames[i])) {
+                name = m_cairoVarNames[i+1];
+                break;
+            }
+        }
+        
+        return name;
+    }    
+    
     private Boolean functionIsPublicInterface(String name) {
         for (int i=0; i < m_cairoNames.length -1; i += 2) {
             if(name.equals(m_cairoNames[i])) {
@@ -9098,8 +9145,30 @@ public class Translator {
     private String replaceCairoNames(String strLine) {
         strLine = strLine.replaceAll("mPublic.gDB", "Cairo.Database");
         strLine = strLine.replaceAll("Constantes.cSC", "Constantes.");
-        strLine = strLine.replaceAll("mConstantes", "Cairo.Const");
-        strLine = strLine.replaceAll("mGeneralConstantes", "Cairo.General.Const");
+        strLine = strLine.replaceAll("mConstantes", "Cairo.Constants");
+        strLine = strLine.replaceAll("mGeneralConstantes", "Cairo.General.Constants");
+        strLine = strLine.replaceAll("csConstIds.cSNO_ID", "Cairo.Constants.NO_ID");
+        strLine = strLine.replaceAll("csETablasGeneral.cS", "Cairo.Tables.");
+        strLine = strLine.replaceAll("getProperties\\(\\).item\\(\\).item\\(", "getProperties().item(");        
+        strLine = strLine.replaceAll("self.getNombre", "self.getName");
+        strLine = strLine.replaceAll("self.getCodigo", "self.getCode");
+        strLine = strLine.replaceAll("cError.mngError\\(VBA.ex,", "Cairo.manageError(ex.message,");
+        strLine = strLine.replaceAll("cSecurity.", "Cairo.Security.");
+        strLine = strLine.replaceAll("mPublic.gAppName", "Cairo.appName");
+        strLine = strLine.replaceAll("Cairo.Constants.c_strCodigo", "Cairo.Constants.CODE_LABEL");
+        strLine = strLine.replaceAll("Cairo.Constants.c_strActivo", "Cairo.Constants.ACTIVE_LABEL");
+        strLine = strLine.replaceAll("Cairo.Constants.ACTIVO", "Cairo.Constants.ACTIVE");
+        strLine = strLine.replaceAll("Cairo.Constants.c_strDescrip", "Cairo.Constants.DESCRIPTION_LABEL");
+        strLine = strLine.replaceAll("Cairo.Constants.c_strNombre", "Cairo.Constants.NAME_LABEL");
+        strLine = strLine.replaceAll("\\(k_", "(K_");
+        strLine = strLine.replaceAll("ABM_MSG.m", "Dialogs.Message.M");
+        strLine = strLine.replaceAll(" case  ", " case ");
+        strLine = strLine.replaceAll("Cairo.Constants.self.val\\(", "Cairo.Util.val(");
+        strLine = strLine.replaceAll("cUtil.valEmpty\\(", "Cairo.Util.valEmpty(");
+        strLine = strLine.replaceAll("csTypes.cS", "Cairo.Constants.Types.");
+        strLine = strLine.replaceAll("Cairo.Constants.c_DebeIndicarNombre", "Cairo.Constants.MUST_SET_A_NAME");
+        strLine = strLine.replaceAll("c_get_codigo_from_id", "Cairo.Constants.GET_CODE_FROM_ID");
+        
         return strLine;
     }
     

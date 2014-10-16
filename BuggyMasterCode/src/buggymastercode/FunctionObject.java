@@ -109,8 +109,8 @@ public class FunctionObject {
 
         if (functionName.trim().isEmpty())
             return null;
-        if (className.trim().isEmpty())
-            return null;
+        //if (className.trim().isEmpty())
+        //    return null;
 
         if ("=;/+-:.(){}[]*\\".contains(functionName))
             return null;
@@ -141,6 +141,7 @@ public class FunctionObject {
                             + " or fun_javaname = " + Db.getString(functionName)
                             + ") and (lower(cl_vbname) = " + Db.getString(className.toLowerCase())
                             + " or cl_javaname = " + Db.getString(className)
+                            + " or " + (className.isEmpty() ? "1=1" : "1=2")
                             + ")";
         if (!packageName.isEmpty()) {
             sqlstmt += " and (lower(cl_packagename) = " + Db.getString(packageName.toLowerCase()) + ")";

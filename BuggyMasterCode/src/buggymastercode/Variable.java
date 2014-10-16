@@ -60,6 +60,16 @@ public class Variable {
         }
     }
     
+    public void setJavaConstantName(String name) {
+        int i = name.indexOf("(");
+        if (i > 1) {
+            m_javaName = name.substring(0, i);
+        }
+        else {
+            m_javaName = name;
+        }
+    }
+    
     public void setJavaNameWithoutValidate(String name) {
         m_javaName = name;
     }
