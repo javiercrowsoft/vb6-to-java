@@ -4,6 +4,7 @@
 
 package buggymastercode;
 
+import java.awt.Font;
 import java.io.IOException;
 import java.util.logging.Logger;
 import org.jdesktop.application.Action;
@@ -612,6 +613,8 @@ public class BuggyMasterCodeView extends FrameView {
             G.showInfo(msg);
             setEnabledCtrls(true);
         }
+        //ResourceMap resourceMap = getResourceMap();
+        //txSourceCode.setFont(resourceMap.getFont("sourceCode.font"));
     }
 
     private void translateGroup(String vbgFile) {
