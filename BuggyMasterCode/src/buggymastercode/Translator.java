@@ -199,6 +199,9 @@ public class Translator {
     private boolean m_inCairoTerminate = false;
     private boolean m_inCairoMessageEx = false;
     private boolean m_inCairoLoad = false;
+    private boolean m_inCairoDelete = false;
+    private boolean m_inCairoEdit = false;
+    private boolean m_inCairoEditNew = false;
     
     private String m_scalaCode = "";
     
@@ -6929,11 +6932,6 @@ public class Translator {
             secondFunctionSpace = "";
             javaScriptDeclaration = " = function";
         }
-        
-        String promiseDeclaration = "";
-        if (m_translateToCairo) {
-            promiseDeclaration = getPromiseDeclaration();
-        }                    
 
         return functionScope + firstFunctionSpace
                 + modifiers
@@ -6944,8 +6942,7 @@ public class Translator {
                 + translateParameters(strLine)
                 + ") {"
                 + todoByRef
-                + newline
-                + promiseDeclaration;
+                + newline;
     }
 
     private String translateFunctionReturnVariable(String strLine) {
@@ -9184,56 +9181,139 @@ public class Translator {
         m_inCairoTerminate = false;
         m_inCairoMessageEx = false;
         m_inCairoLoad = false;
+        m_inCairoDelete = false;
+        m_inCairoEdit = false;
+        m_inCairoEditNew = false;
     }
     
     private void updateInCairoFlags(String name) {
         if (name.equals("cIABMClient_Validate")) {
             m_inCairoValidate = true;
         }
-        if (name.equals("cIABMClient_Save")) {
+        else if (name.equals("cIABMClient_Save")) {
             m_inCairoSave = true;
         }
-        if (name.equals("cIABMClient_ShowDocDigital")) {
+        else if (name.equals("cIABMClient_ShowDocDigital")) {
             m_inCairoShowDoc = true;
         }
-        if (name.equals("class_Terminate")) {
+        else if (name.equals("class_Terminate")) {
             m_inCairoTerminate = true;
         }
-        if (name.equals("cIABMClient_MessageEx")) {
+        else if (name.equals("cIABMClient_MessageEx")) {
             m_inCairoMessageEx = true;
         }
-        if (name.equals("load")) {
+        else if (name.equals("load")) {
             m_inCairoLoad = true;
         }
-    }
-    
-    private String getPromiseDeclaration() {
-        if (m_inCairoSave) {
-            return newline + getTabs() + "  var p = null;\n";
+        else if (name.equals("cIEditGeneric_Delete")) {
+            m_inCairoDelete = true;
         }
-        return "";
+        else if (name.equals("cIEditGeneric_Edit")) {
+            m_inCairoEdit = true;
+        }
+        else if (name.equals("cIABMClient_EditNew")) {
+            m_inCairoEditNew = true;
+        }
     }
     
     private String translateLineInCairoFunction(String strLine) {
-        if (m_inCairoValidate)
+        if (m_inCairoValidate) {
             return translateLineInCairoValidate(strLine);
-        else if (m_inCairoShowDoc)
+        }
+        else if (m_inCairoShowDoc) {
             return translateLineInCairoShowDoc(strLine);
-        else if (m_inCairoTerminate)
+        }
+        else if (m_inCairoTerminate) {
             return translateLineInCairoTerminate(strLine);
-        else if (m_inCairoMessageEx)
+        }
+        else if (m_inCairoMessageEx) {
             return translateLineInCairoMessageEx(strLine);
-        else if (m_inCairoLoad)
+        }
+        else if (m_inCairoLoad) {
             return translateLineInCairoLoad(strLine);
-        else 
+        }
+        else if (m_inCairoDelete) {
+            return translateLineInCairoDelete(strLine);
+        }
+        else if (m_inCairoEdit) {
+            return translateLineInCairoEdit(strLine);
+        }
+        else if (m_inCairoEditNew) {
+            return translateLineInCairoEditNew(strLine);
+        }
+        else if (m_inCairoSave) {
+            return translateLineInCairoSave(strLine);
+        }
+        else {
             return strLine;
+        }
+    }
+    
+    String deleteReturnLine = "{\n          return Cairo.Promises.resolvedPromise(false);\n        }";
+    
+    private String translateLineInCairoDelete(String strLine) {
+        String trimedLine = strLine.trim();
+        if (G.beginLike(trimedLine, "sqlstmt") ||
+                G.beginLike(trimedLine, "var sqlstmt = null;")) {
+            return "";
+        }
+        
+        return strLine
+                .replaceAll("\\{ return false; \\}", deleteReturnLine)
+                .replaceAll("return Cairo.Database.execute\\(sqlstmt, ", "return Cairo.Database.execute(");
+    }
+    
+    private String translateLineInCairoEdit(String strLine) {
+        return strLine;
+    }
+
+    private String translateLineInCairoEditNew(String strLine) {
+        return strLine.replaceAll("self.edit\\(Cairo.Constants.NO_ID\\);", "return self.edit(Cairo.Constants.NO_ID);");
+    }
+    
+    private String translateLineInCairoSave(String strLine) {
+        String trimedLine = strLine.trim();
+        if (G.beginLike(trimedLine, "var register = null;") ||
+                G.beginLike(trimedLine, "var fields = null;") ||
+                G.beginLike(trimedLine, "var property = null;")) {
+            return "";
+        }
+        else if (G.beginLike(trimedLine, "if (!Cairo.Database.saveEx(register, , Cairo.General.Constants.")) {
+            trimedLine = trimedLine.substring(62).replace(") { return false; }", "");
+            trimedLine = trimedLine.replace("C_ABMClientSave", "\n            Cairo.Constants.CLIENT_SAVE_FUNCTION,\n            ");
+            trimedLine = trimedLine.replace(", C_MODULE, ", "C_MODULE,\n            ");
+            trimedLine = getTabs() + "return Cairo.Database.saveEx(\n            register,\n            false,\n            Cairo.General.Constants" + trimedLine + ".then(\n\n"
+                    + getTabs() + "  function(result) {\n"
+                    + getTabs() + "    if(result) {";
+            m_tabCount += 4;
+            return trimedLine;
+        }
+        else if (G.beginLike(trimedLine, "return load(register.getID());")) {
+            m_tabCount -= 2;
+            trimedLine = getTabs() + "}\n" 
+                        + getTabs() + "else {\n" 
+                        + getTabs() + "  return false;\n" 
+                        + getTabs() + "}\n";
+            trimedLine = strLine + "\n" + trimedLine;
+            m_tabCount -= 2;
+            trimedLine += getTabs() + "});\n";
+            return trimedLine;
+        }
+        else {
+            return strLine
+                    .replaceAll("register = new cRegister\\(\\);", "var register = new Cairo.Database.Register();")
+                    .replaceAll("fields = register.getFields\\(\\);", "var fields = register.getFields();")
+                    .replaceAll("property = m_dialog.getProperties\\(\\).item\\(_i\\);", "var property = m_dialog.getProperties().item(_i);")
+                    .replaceAll("fields.add2\\(", "fields.add(")
+                    .replaceAll("//Error al grabar ", "// Error saving ");
+        }
     }
     
     private String translateLineInCairoLoad(String strLine) {
         String trimedLine = strLine.trim();
         if (G.beginLike(trimedLine, "sqlstmt") ||
-                G.beginLike(trimedLine, "sqlstmt") ||
-                G.beginLike(trimedLine, "sqlstmt")) {
+                G.beginLike(trimedLine, "var sqlstmt = null;") ||
+                G.beginLike(trimedLine, "var rs = null;")) {
             return "";
         }
         else if (G.beginLike(trimedLine, "if (!Cairo.Database.openRs(sqlstmt, rs,")) {
@@ -9245,7 +9325,7 @@ public class Translator {
         }
         else if (G.beginLike(trimedLine, "return true;")) {
             m_tabCount -= 2;
-            return getTabs() + "};\n";
+            return getTabs() + "});\n";
         }
         else if (G.beginLike(trimedLine, "if (rs.isEOF()) {")) {
             m_tabCount--;
@@ -9253,8 +9333,9 @@ public class Translator {
             m_tabCount++;
             return rtn;
         }
-        else
-            return strLine;
+        else {
+            return strLine.replaceAll("rs.getFields\\(\\)", "response.data");
+        }
     }
     
     private String translateLineInCairoShowDoc(String strLine) {
@@ -9420,6 +9501,8 @@ public class Translator {
         strLine = strLine.replaceAll("Dialogs.PropertySubType.TextButton", "Dialogs.PropertySubType.textButton");
         strLine = strLine.replaceAll("Dialogs.PropertySubType.TextButtonEx", "Dialogs.PropertySubType.textButtonEx");
         strLine = strLine.replaceAll("setValue\\(Integer.parseInt\\(m_activo\\)\\);", "setValue(m_activo === true ? 1 : 0);");
+        strLine = strLine.replaceAll(".securityCanAccess\\(", ".hasPermissionTo(");
+        strLine = strLine.replaceAll(".getHelpId\\(\\)", ".getSelectId()");
         
         return strLine;
     }
