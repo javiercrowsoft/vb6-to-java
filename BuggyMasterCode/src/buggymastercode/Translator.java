@@ -202,6 +202,7 @@ public class Translator {
     private boolean m_inCairoDelete = false;
     private boolean m_inCairoEdit = false;
     private boolean m_inCairoEditNew = false;
+    private boolean m_inCairoDiscardChanges = false;
     
     private String m_scalaCode = "";
     
@@ -9184,6 +9185,7 @@ public class Translator {
         m_inCairoDelete = false;
         m_inCairoEdit = false;
         m_inCairoEditNew = false;
+        m_inCairoDiscardChanges = false;
     }
     
     private void updateInCairoFlags(String name) {
@@ -9213,6 +9215,9 @@ public class Translator {
         }
         else if (name.equals("cIABMClient_EditNew")) {
             m_inCairoEditNew = true;
+        }
+        else if (name.equals("cIABMClient_DiscardChanges")) {
+            m_inCairoDiscardChanges = true;
         }
     }
     
@@ -9244,6 +9249,9 @@ public class Translator {
         else if (m_inCairoSave) {
             return translateLineInCairoSave(strLine);
         }
+        else if (m_inCairoDiscardChanges) {
+            return translateLineInCairoDiscarChanges(strLine);
+        }
         else {
             return strLine;
         }
@@ -9264,11 +9272,39 @@ public class Translator {
     }
     
     private String translateLineInCairoEdit(String strLine) {
-        return strLine;
+        String trimedLine = strLine.trim();
+        if (G.beginLike(trimedLine, "if (!load(id)) { return _rtn; }")) {
+            trimedLine = getTabs() + "p = load(id).then(\n" + getTabs() + " function(success) {\n" + getTabs() + "    if(success) {\n";
+            m_tabCount += 3;
+            return trimedLine;
+        }
+        else if (G.beginLike(strLine, "                return _rtn;")) {
+            m_tabCount -= 1;
+            trimedLine = getTabs() + "}\n" 
+                        + getTabs() + "return success;\n";
+            m_tabCount -= 2;
+            trimedLine += getTabs() + "});\n";
+            return trimedLine;
+        }
+        else if (G.beginLike(trimedLine, "return _rtn;")) {
+            return "";
+        }        
+        else {
+            return strLine
+                    .replace("var _rtn = null;", "var p = Cairo.Promises.resolvedPromise(false);")
+                    .replace("if (!loadCollection()) { return _rtn; }", "if(!loadCollection()) { return false; }")
+                    .replace("_rtn = m_id != Cairo.Constants.NO_ID;", "success = m_id != Cairo.Constants.NO_ID;")
+                    .replace("_rtn = true;", "success = true;")
+                    .replaceAll("_rtn", "p");
+        }
     }
 
     private String translateLineInCairoEditNew(String strLine) {
         return strLine.replaceAll("self.edit\\(Cairo.Constants.NO_ID\\);", "return self.edit(Cairo.Constants.NO_ID);");
+    }
+    
+    private String translateLineInCairoDiscarChanges(String strLine) {
+        return strLine.replace("loadCollection();", "return Cairo.Promises.resolvedPromise(loadCollection());");
     }
     
     private String translateLineInCairoSave(String strLine) {
@@ -9305,7 +9341,7 @@ public class Translator {
                     .replaceAll("fields = register.getFields\\(\\);", "var fields = register.getFields();")
                     .replaceAll("property = m_dialog.getProperties\\(\\).item\\(_i\\);", "var property = m_dialog.getProperties().item(_i);")
                     .replaceAll("fields.add2\\(", "fields.add(")
-                    .replaceAll("//Error al grabar ", "// Error saving ");
+                    .replaceAll("//Error al grabar ", "\n" + getTabs() + "// Error saving ");
         }
     }
     
@@ -9318,18 +9354,18 @@ public class Translator {
         }
         else if (G.beginLike(trimedLine, "if (!Cairo.Database.openRs(sqlstmt, rs,")) {
             String rtn = getTabs() 
-                    + "return Cairo.Database.getData(\"load[" + m_javaClassName + "\").then(\n"
+                    + "return Cairo.Database.getData(\"load[" + m_javaClassName + "]\", id).then(\n"
                     + getTabs() + C_TAB + "function(response) {\n";
             m_tabCount += 2;
             return rtn;
         }
         else if (G.beginLike(trimedLine, "return true;")) {
             m_tabCount -= 2;
-            return getTabs() + "});\n";
+            return getTabs() + "  return true;\n" + getTabs() + "});\n";
         }
         else if (G.beginLike(trimedLine, "if (rs.isEOF()) {")) {
             m_tabCount--;
-            String rtn = getTabs() + "if(response.success === false || response.data.length === 0) {\n";
+            String rtn = getTabs() + "if(response.success === false) { return false; }\n\n" + getTabs() + "if(response.data.length === 0) {\n";
             m_tabCount++;
             return rtn;
         }
@@ -9341,7 +9377,8 @@ public class Translator {
     private String translateLineInCairoShowDoc(String strLine) {
         String[] lines = {
             "// **TODO:** goto found: GoTo ExitProc;",
-            "// **TODO:** label found: ExitProc:;"
+            "// **TODO:** label found: ExitProc:;",
+            "var doc = null;"
         };
         String trimedLine = strLine.trim();
         for (int i = 0; i < lines.length; i++) {
@@ -9349,7 +9386,9 @@ public class Translator {
                 return "";
             }        
         }
-        return strLine.replaceAll("// \\*\\*TODO\\:\\*\\* on error resume next found !!!\n", "");
+        return strLine
+                .replaceAll("// \\*\\*TODO\\:\\*\\* on error resume next found !!!\n", "")
+                .replace("doc = new cDocDigital();", "var doc = new cDocDigital();");
     }
     
     private String translateLineInCairoTerminate(String strLine) {
@@ -9509,8 +9548,7 @@ public class Translator {
     
     private String addJavaScriptHeader() {
         String header = "(function() {\n  \"use strict\";\n\n";
-        header += "  Cairo.module(\"" + m_javaClassName.substring(1) + ".Edit\", function(Edit, Cairo, Backbone, Marionette, $, _) {\n";
-        header += "    Edit.Controller = createObject();\n\n";
+        header += "  Cairo.module(\"" + m_javaClassName.substring(1) + ".Edit\", function(Edit, Cairo, Backbone, Marionette, $, _) {\n\n";
         header += "    var createObject = function() {\n\n";
         header += "      var self = {};\n\n";
         header += "      var Dialogs = Cairo.Entities.Dialogs;\n";
@@ -9521,8 +9559,10 @@ public class Translator {
     private String addJavaScriptFooter() {
         String footer = "\n      return self;\n";
         footer += "    };\n\n";
-        footer += "  })\n\n";
-        footer += "}());";
+        footer += "    Edit.Controller = createObject();\n\n";
+        footer += "  });\n\n";
+        footer += getCairoTreeListController();
+        footer += "\n\n}());";
         return footer;
     }
 
@@ -9574,7 +9614,8 @@ public class Translator {
     }
 
     String[] lastReplaceStrings = {
-            "if \\(", "if("
+            "if \\(", "if(",
+            "cProvincia\\.", ""
     };        
     private String applyLastReplace(String strLine) {        
         for (int i=0; i < lastReplaceStrings.length -1; i += 2) {
@@ -9600,6 +9641,115 @@ public class Translator {
         
         return strLine;        
     }
+    
+    private String cairoTreeListControllerGetPluralName(String name) {
+        switch (name) {
+            case "Proveedor":
+                name = "Proveedores";
+            default:
+                name += "s";                
+        }
+        return name;
+    }
+    private String cairoTreeListControllerGetIdentifierName(String name) {
+        switch (name) {
+            case "Proveedor":
+                name = "proveedor";
+            default:
+                name = name.toLowerCase();
+        }
+        return name;
+    }
+    private String cairoTreeListControllerGetlowerName(String name) {
+        switch (name) {
+            case "Proveedor":
+                name = "proveedor";
+            default:
+                name = name.toLowerCase();
+        }
+        return name;
+    }
+    private String cairoTreeListControllerGetIdentifierPluralName(String name) {
+        switch (name) {
+            case "Proveedor":
+                name = "proveedores";
+            default:
+                name = name.toLowerCase() + "s";                
+        }
+        return name;
+    }
+    private String cairoTreeListControllerGetTableName(String name) {
+        switch (name) {
+            case "Proveedor":
+                name = "PROVEEDOR";
+            default:
+                name = name.toUpperCase();                
+        }
+        return name;
+    }    
+    
+    private String getCairoTreeListController() {
+        String moduleName = m_javaClassName.substring(1);
+        String pluralName = cairoTreeListControllerGetPluralName(moduleName); //"Proveedores";
+        String identifierName = cairoTreeListControllerGetIdentifierName(moduleName); //"proveedor";
+        String lowerName = cairoTreeListControllerGetlowerName(moduleName); //"proveedor";
+        String identifierPluralName = cairoTreeListControllerGetIdentifierPluralName(moduleName); //"proveedores";
+        String tableName = cairoTreeListControllerGetTableName(moduleName); //"PROVEEDOR";
+        
+        String strLine = "Cairo.module(\"" + moduleName + ".List\", function(List, Cairo, Backbone, Marionette, $, _) {\n" +
+                        "    List.Controller = {\n" +
+                        "      list: function() {\n" +
+                        "\n" +
+                        "        var self = this;\n" +
+                        "\n" +
+                        "        /*\n" +
+                        "         this function will be called by the tab manager every time the\n" +
+                        "         view must be created. when the tab is not visible the tab manager\n" +
+                        "         will not call this function but only make the tab visible\n" +
+                        "         */\n" +
+                        "        var createTreeDialog = function(tabId) {\n" +
+                        "\n" +
+                        "          // ListController properties and methods\n" +
+                        "          //\n" +
+                        "          self.entityInfo = new Backbone.Model({\n" +
+                        "            entitiesTitle: \"" + pluralName + "\",\n" +
+                        "            entityName: \"" + identifierName + "\",\n" +
+                        "            entitiesName: \"" + identifierPluralName + "\"\n" +
+                        "          });\n" +
+                        "\n" +
+                        "          self.showBranch = function(branchId) {\n" +
+                        "            Cairo.log(\"Loading nodeId: \" + branchId);\n" +
+                        "            Cairo.Tree.List.Controller.listBranch(branchId, Cairo.Tree.List.Controller.showItems, self);\n" +
+                        "          };\n" +
+                        "\n" +
+                        "          // progress message\n" +
+                        "          //\n" +
+                        "          Cairo.LoadingMessage.show(\"" + pluralName + "\", \"Loading " + lowerName + " from Crowsoft Cairo server.\");\n" +
+                        "\n" +
+                        "          // create the tree region\n" +
+                        "          //\n" +
+                        "          Cairo.addRegions({ " + identifierName + "TreeRegion: tabId });\n" +
+                        "\n" +
+                        "          // create the dialog\n" +
+                        "          //\n" +
+                        "          Cairo.Tree.List.Controller.list(\n" +
+                        "            Cairo.Tables." + tableName + ",\n" +
+                        "            new Cairo.Tree.List.TreeLayout({ model: self.entityInfo }),\n" +
+                        "            Cairo." + identifierName + "TreeRegion,\n" +
+                        "            self);\n" +
+                        "\n" +
+                        "        };\n" +
+                        "\n" +
+                        "        // create the tab\n" +
+                        "        //\n" +
+                        "        Cairo.mainTab.showTab(\"" + pluralName + "\", \"" + identifierName + "TreeRegion\", \"#general/" + identifierPluralName + "\", createTreeDialog);\n" +
+                        "\n" +
+                        "      }\n" +
+                        "    };\n" +
+                        "  });\n";        
+        return strLine;
+    }
+    
 }
 
 class IdentifierInfo {
