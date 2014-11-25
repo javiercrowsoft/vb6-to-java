@@ -197,12 +197,16 @@ public class Translator {
     private boolean m_inCairoSave = false;
     private boolean m_inCairoShowDoc = false;
     private boolean m_inCairoTerminate = false;
+    private boolean m_inCairoDestroy = false;
     private boolean m_inCairoMessageEx = false;
     private boolean m_inCairoLoad = false;
     private boolean m_inCairoDelete = false;
     private boolean m_inCairoEdit = false;
     private boolean m_inCairoEditNew = false;
     private boolean m_inCairoDiscardChanges = false;
+    private boolean m_inCairoCopy = false;
+    private boolean m_inPropertyChange = false;
+    private boolean m_propertyChangeIsNotEmpty = false;
     
     private String m_scalaCode = "";
     
@@ -525,7 +529,7 @@ public class Translator {
             rtn = removeCairoLines(rtn);
             rtn = replaceCairoNames(rtn);
             rtn = removeCairoLinesAfterReplace(rtn);
-            rtn = translateLineInCairoFunction(rtn);
+            rtn = translateLineInCairoFunction(rtn, strLine);
             rtn = applyLastReplace(rtn);
             if (G.ltrim(rtn).equals("\n")) {
                 if (m_lastLineWasEmpty) {
@@ -1590,13 +1594,9 @@ public class Translator {
                  */
                 
                 if (m_parseToCairo) {
-                    if (functionIsPublicInterface(javaName)){
-                        if (words[0].equals("private")) {
-                            words[0] = "public";
-                        }                            
-                    }
+                    boolean isPublicInterface = functionIsPublicInterface(javaName);
                     javaName = translateFunctionNameToCairo(javaName);
-                    if (words[0].equals("public")) {
+                    if (words[0].equals("public") || isPublicInterface) {
                         javaName = "self." + javaName;
                     }
                 }
@@ -1702,6 +1702,8 @@ public class Translator {
                         identifier = identifier.substring(0, identifier.length() - 2);
                     }
 
+                    identifier = getCairoVariableName(identifier);
+                    
                     Variable var = new Variable();
                     var.setVbName(vbIdentifier);
                     var.setJavaName(identifier);
@@ -1800,8 +1802,9 @@ public class Translator {
         }
 
         String vbIdentifier = identifier;
-        identifier = identifier.toUpperCase();
-
+        identifier = getCairoVariableName(identifier);
+        identifier = identifier.toUpperCase();        
+        
         Variable var = new Variable();
         var.setVbName(vbIdentifier);
         var.setJavaName(identifier);
@@ -2094,14 +2097,6 @@ public class Translator {
         boolean parenthesesClosed = false;
         boolean isCaseElse = false;
         String[] words = G.split(strLine);
-        
-        
-        // debug
-        if (strLine.toUpperCase().contains("K_NOMBRE")) {
-            int i = 9999;
-        }
-         
-        
 
         if (m_isFirstCase) {
             m_isFirstCase = false;
@@ -6590,9 +6585,9 @@ public class Translator {
                     Iterator itrMembers = type.getMembersVariables().iterator();
                     while (itrMembers.hasNext()) {
                         Variable member = (Variable)itrMembers.next();
-                        if (member.getJavaName().equals(identifier))
+                        if (member.getJavaName().equalsIgnoreCase(identifier))
                             return member;
-                        else if (member.getVbName().equals(identifier))
+                        else if (member.getVbName().equalsIgnoreCase(identifier))
                             return member;
                     }
                     break;
@@ -6611,9 +6606,9 @@ public class Translator {
                 Iterator itrPublicVar = source.getPublicVariables().iterator();
                 while (itrPublicVar.hasNext()) {
                     Variable publicVar = (Variable)itrPublicVar.next();
-                    if (publicVar.getJavaName().equals(identifier))
+                    if (publicVar.getJavaName().equalsIgnoreCase(identifier))
                         return publicVar;
-                    else if (publicVar.getVbName().equals(identifier))
+                    else if (publicVar.getVbName().equalsIgnoreCase(identifier))
                         return publicVar;
                 }
                 if (!className.isEmpty())
@@ -7331,6 +7326,8 @@ public class Translator {
             paramName = translateVarNameToCairo(paramName);
         }
         
+        paramName = getCairoVariableName(paramName);
+        
         Variable var = new Variable();
         var.setJavaName(paramName);
         var.setVbName(vbParamName);
@@ -7590,7 +7587,8 @@ public class Translator {
             }
         }
 
-        String vbIdentifier = identifier;
+        String vbIdentifier = identifier;        
+        identifier = getCairoVariableName(identifier);
         identifier = identifier.toUpperCase();
 
         Variable var = new Variable();
@@ -7770,7 +7768,8 @@ public class Translator {
         }
 
         String vbIdentifier = identifier;
-        identifier = identifier.toUpperCase();
+        identifier = getCairoVariableName(identifier);
+        identifier = identifier.toUpperCase();        
 
         Variable var = new Variable();
         var.setVbName(vbIdentifier);
@@ -7850,6 +7849,9 @@ public class Translator {
             if (isArray) {
                 identifier = identifier.substring(0, identifier.length() - 2);
             }
+            
+            identifier = getCairoVariableName(identifier);
+            
             Variable var = new Variable();
             var.setVbName(vbIdentifier);
             var.setJavaName(identifier);
@@ -7925,6 +7927,9 @@ public class Translator {
             }
         }
         if (!identifier.isEmpty()) {
+            
+            identifier = getCairoVariableName(identifier);
+            
             Variable var = new Variable();
             var.setVbName(vbIdentifier);
             var.setJavaName(identifier);
@@ -7949,7 +7954,9 @@ public class Translator {
         if (isArray) {
             identifier = identifier.substring(0, identifier.length() - 2);
         }
-
+        
+        identifier = getCairoVariableName(identifier);
+        
         Variable var = new Variable();
         var.setVbName(vbIdentifier);
         var.setJavaName(identifier);
@@ -8091,6 +8098,8 @@ public class Translator {
         if (m_translateToCairo) {
             identifier = translateVarNameToCairo(identifier);
         }
+        
+        identifier = getCairoVariableName(identifier);
         
         Variable var = new Variable();
         var.setJavaName(identifier);
@@ -8406,6 +8415,8 @@ public class Translator {
 
                 saveVariableInType(vbIdentifier, identifier, dataType);
 
+                identifier = getCairoVariableName(identifier);
+                
                 Variable var = new Variable();
                 var.setVbName(vbIdentifier);
                 var.setJavaName(identifier);
@@ -9180,12 +9191,16 @@ public class Translator {
         m_inCairoSave = false;
         m_inCairoShowDoc = false;
         m_inCairoTerminate = false;
+        m_inCairoDestroy = false;
         m_inCairoMessageEx = false;
         m_inCairoLoad = false;
         m_inCairoDelete = false;
         m_inCairoEdit = false;
         m_inCairoEditNew = false;
         m_inCairoDiscardChanges = false;
+        m_inCairoCopy = false;
+        m_inPropertyChange = false;
+        m_propertyChangeIsNotEmpty = false;
     }
     
     private void updateInCairoFlags(String name) {
@@ -9199,6 +9214,9 @@ public class Translator {
             m_inCairoShowDoc = true;
         }
         else if (name.equals("class_Terminate")) {
+            m_inCairoDestroy = true;
+        }
+        else if (name.equals("cIABMClient_Terminate")) {
             m_inCairoTerminate = true;
         }
         else if (name.equals("cIABMClient_MessageEx")) {
@@ -9219,14 +9237,23 @@ public class Translator {
         else if (name.equals("cIABMClient_DiscardChanges")) {
             m_inCairoDiscardChanges = true;
         }
+        else if (name.equals("cIABMClient_PropertyChange")) {
+            m_inPropertyChange = true;
+        }
+        else if (name.equals("cIABMClient_Copy")) {
+            m_inCairoCopy = true;
+        }
     }
     
-    private String translateLineInCairoFunction(String strLine) {
+    private String translateLineInCairoFunction(String strLine, String originalLine) {
         if (m_inCairoValidate) {
             return translateLineInCairoValidate(strLine);
         }
         else if (m_inCairoShowDoc) {
             return translateLineInCairoShowDoc(strLine);
+        }
+        else if (m_inCairoDestroy) {
+            return translateLineInCairoDestroy(strLine);
         }
         else if (m_inCairoTerminate) {
             return translateLineInCairoTerminate(strLine);
@@ -9252,8 +9279,39 @@ public class Translator {
         else if (m_inCairoDiscardChanges) {
             return translateLineInCairoDiscarChanges(strLine);
         }
+        else if (m_inPropertyChange) {
+            return translateLineInCairoPropertyChange(strLine, originalLine);
+        }
+        else if (m_inCairoCopy) {
+            return translateLineInCairoCopy(strLine);
+        }
         else {
             return strLine;
+        }
+    }
+    
+    private String getCairoVariableName(String name) {
+        if (m_translateToCairo || m_parseToCairo) {
+            if (name.trim().equals("K_NOMBRE"))
+                return "K_NAME";
+            if (name.trim().equals("K_CODIGO"))
+                return "K_CODE";
+            if (name.trim().equals("K_ACTIVE"))
+                return "K_ACTIVE";
+            if (name.trim().equals("m_nombre"))
+                return "m_name";
+            if (name.trim().equals("m_codigo"))
+                return "m_code";
+            if (name.trim().equals("m_activo"))
+                return "m_active";
+            if (name.trim().equals("m_objTree"))
+                return "m_listController";
+            if (name.trim().toLowerCase().startsWith("csc")) 
+                return replaceIdentifierCamel(name);
+            return name;
+        }
+        else {
+            return name;
         }
     }
     
@@ -9300,11 +9358,33 @@ public class Translator {
     }
 
     private String translateLineInCairoEditNew(String strLine) {
-        return strLine.replaceAll("self.edit\\(Cairo.Constants.NO_ID\\);", "return self.edit(Cairo.Constants.NO_ID);");
+        return strLine
+                .replaceAll("self.edit\\(Cairo.Constants.NO_ID\\);", "return self.edit(Cairo.Constants.NO_ID);")
+                .replace("self.terminate();", "updateList();\n")
+                .replace("return self.edit(Cairo.Constants.NO_ID);", "m_listController.updateEditorKey(self, Cairo.Constants.NO_ID);\n\n        return load(Cairo.Constants.NO_ID).then(\n          function(ignored) {\n            return refreshCollection();\n          }\n        );");
     }
     
     private String translateLineInCairoDiscarChanges(String strLine) {
-        return strLine.replace("loadCollection();", "return Cairo.Promises.resolvedPromise(loadCollection());");
+        return strLine.replace("loadCollection();", "return Cairo.Promises.resolvedPromise(refreshCollection());");
+    }
+    
+    private String translateLineInCairoPropertyChange(String strLine, String originalLine) {
+        if (originalLine.equals("End Function")) {
+            if (m_propertyChangeIsNotEmpty == false) {
+                return "        return Cairo.Promises.resolvedPromise(false);\n" + strLine;
+            }
+        }
+        else if (!(strLine.equals("      self.propertyChange = function(key) {\n") 
+                || strLine.equals("\n"))) {
+            m_propertyChangeIsNotEmpty = true;
+        }
+        return strLine;
+    }
+    
+    private String translateLineInCairoCopy(String strLine) {
+        return strLine
+                .replace("self.terminate();", "updateList();\n")
+                .replace("m_isNew = true;", "m_isNew = true;\n\n        m_listController.updateEditorKey(self, Cairo.Constants.NO_ID);\n");
     }
     
     private String translateLineInCairoSave(String strLine) {
@@ -9388,10 +9468,10 @@ public class Translator {
         }
         return strLine
                 .replaceAll("// \\*\\*TODO\\:\\*\\* on error resume next found !!!\n", "")
-                .replace("doc = new cDocDigital();", "var doc = new cDocDigital();");
+                .replace("doc = new cDocDigital();", "var doc = new Cairo.DocDigital();");
     }
     
-    private String translateLineInCairoTerminate(String strLine) {
+    private String translateLineInCairoDestroy(String strLine) {
         String[] lines = {
             "// **TODO:** on error resume next found !!!"
         };
@@ -9402,6 +9482,26 @@ public class Translator {
             }        
         }
         return strLine;
+    }
+    
+    private String translateLineInCairoTerminate(String strLine) {
+        String[] lines = {
+            "// **TODO:** on error resume next found !!!",
+            "var _rtn = null;",
+            "_rtn = true;",
+        };
+        String trimedLine = strLine.trim();
+        for (int i = 0; i < lines.length; i++) {
+            if (trimedLine.equals(lines[i]) ) {
+                return "";
+            }        
+        }
+        strLine = strLine.replace("var _rtn = null;", "");
+        strLine = strLine.replace("return _rtn;", "return;");
+        if (strLine.trim().equals("}\n      \n        return;\n      };"))
+            return "        }\n      };\n";
+        else
+            return strLine;
     }
     
     private String translateLineInCairoValidate(String strLine) {
@@ -9499,10 +9599,12 @@ public class Translator {
         strLine = strLine.replaceAll("C_ShowDocDigital,", "Cairo.Constants.SHOW_DOCUMENTS_FUNCTION,");
         strLine = strLine.replaceAll("LNGGetText\\(", "Cairo.Language.getText(");
         strLine = strLine.replaceAll("CSKernelClient2.cUtil.showHelp\\(abmGen.getHWnd\\(\\), ", "Cairo.Documentation.show(");
-        strLine = strLine.replaceAll("csPreGNew", "Cairo.Security.Actions.General.NEW_");
-        strLine = strLine.replaceAll("csPreGEdit", "Cairo.Security.Actions.General.EDIT_");
-        strLine = strLine.replaceAll("csPreGList", "Cairo.Security.Actions.General.LIST_");
-        strLine = strLine.replaceAll("csPreGDelete", "Cairo.Security.Actions.General.DELETE_");
+        
+        strLine = replaceIdentifier(strLine, "csPreGNew", "Cairo.Security.Actions.General.NEW_");
+        strLine = replaceIdentifier(strLine, "csPreGEdit", "Cairo.Security.Actions.General.EDIT_");
+        strLine = replaceIdentifier(strLine, "csPreGList", "Cairo.Security.Actions.General.LIST_");
+        strLine = replaceIdentifier(strLine, "csPreGDelete", "Cairo.Security.Actions.General.DELETE_");
+        
         strLine = strLine.replaceAll("C_EditGenericDelete,", "Cairo.Constants.DELETE_FUNCTION,");
         strLine = strLine.replaceAll("m_objAbm", "m_dialog");
         strLine = strLine.replaceAll("setHelpId", "setSelectId");
@@ -9546,12 +9648,68 @@ public class Translator {
         return strLine;
     }
     
+    private String replaceIdentifierCamel(String identifier) {
+        String newIdentifier = "";
+        boolean upperFound = false;
+        boolean firstUpper = true;
+        String x = "";
+        for (int k = 0; k < identifier.length(); k++) {
+            char z = identifier.charAt(k);                            
+            if (Character.isUpperCase(z)) {
+                upperFound = true;
+                x += z;
+            }
+            else {
+                if (upperFound) {
+                    upperFound = false;
+                    if (firstUpper) {
+                        firstUpper = false;
+                    }
+                    else {
+                        newIdentifier += "_";
+                    }
+                    newIdentifier += x;
+                    x = "";
+                }
+                newIdentifier += z;
+            }            
+        }
+        if (!x.isEmpty()) {
+            newIdentifier += "_" + x;
+        }
+        return newIdentifier;
+    }
+    
+    private String replaceIdentifier(String strLine, String toSearch, String replaceWith) {
+        int i;
+        do {
+            i = strLine.toLowerCase().indexOf(toSearch.toLowerCase());
+            if (i >= 0) {
+                
+                int t, r;
+                t = r = i + toSearch.length();
+
+                int s = strLine.length();
+                while (t <= s) {                    
+                    char c = strLine.charAt(t);
+                    if (!(Character.isLetter(c) 
+                            || Character.isDigit(c)
+                            || c == '_')) {
+                        strLine = strLine.substring(0, i) + replaceWith + strLine.substring(r, t).toUpperCase() + strLine.substring(t, s); 
+                        break;
+                    }                        
+                    t++;
+                }
+            }
+        } while (i >= 0);
+        return strLine;
+    }    
     private String addJavaScriptHeader() {
         String header = "(function() {\n  \"use strict\";\n\n";
         header += "  Cairo.module(\"" + m_javaClassName.substring(1) + ".Edit\", function(Edit, Cairo, Backbone, Marionette, $, _) {\n\n";
         header += "    var createObject = function() {\n\n";
         header += "      var self = {};\n\n";
-        header += "      var Dialogs = Cairo.Entities.Dialogs;\n";
+        header += "      var Dialogs = Cairo.Dialogs;\n";
         m_tabCount += 2;
         return header;
     };
@@ -9559,7 +9717,7 @@ public class Translator {
     private String addJavaScriptFooter() {
         String footer = "\n      return self;\n";
         footer += "    };\n\n";
-        footer += "    Edit.Controller = createObject();\n\n";
+        footer += "    Edit.Controller = { getEditor: createObject };\n\n";
         footer += "  });\n\n";
         footer += getCairoTreeListController();
         footer += "\n\n}());";
@@ -9581,7 +9739,8 @@ public class Translator {
         "// Implementacion de cIABMClient\n",
         "// Implementacion de cIEditGeneric\n",
         "// construccion - destruccion\n",
-        "//Option Explicit\n"
+        "//Option Explicit\n",
+        "var m_host;\n"
     };
     String[] dicardBeginLikeLines = {
         "//  With m_ObjAbm.Properties(csc",
@@ -9614,8 +9773,7 @@ public class Translator {
     }
 
     String[] lastReplaceStrings = {
-            "if \\(", "if(",
-            "cProvincia\\.", ""
+            "if \\(", "if("
     };        
     private String applyLastReplace(String strLine) {        
         for (int i=0; i < lastReplaceStrings.length -1; i += 2) {
@@ -9696,7 +9854,7 @@ public class Translator {
         String identifierPluralName = cairoTreeListControllerGetIdentifierPluralName(moduleName); //"proveedores";
         String tableName = cairoTreeListControllerGetTableName(moduleName); //"PROVEEDOR";
         
-        String strLine = "Cairo.module(\"" + moduleName + ".List\", function(List, Cairo, Backbone, Marionette, $, _) {\n" +
+        String strLine = "  Cairo.module(\"" + moduleName + ".List\", function(List, Cairo, Backbone, Marionette, $, _) {\n" +
                         "    List.Controller = {\n" +
                         "      list: function() {\n" +
                         "\n" +
