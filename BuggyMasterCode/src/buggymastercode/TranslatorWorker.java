@@ -352,7 +352,7 @@ public class TranslatorWorker extends SwingWorker<Boolean, Boolean> {
                 m_translator.implementListeners(sourceCodeJava);
                 sourceCodeJava.insert(0, m_translator.getImportSection());
                 sourceFile.setVbSource(sourceCode.toString());
-                sourceFile.setJavaSource(sourceCodeJava.toString() + newline + m_translator.getSubClasses());
+                sourceFile.setJavaSource(sourceCodeJava.toString() + newline + m_translator.getSubClasses() + newline + newline + m_translator.getScalaFiles());
                 m_translator.addEventListenerInterface();
                 m_translator.addEventListenerAdapter();
             }

@@ -200,6 +200,8 @@ public class Translator {
     private boolean m_inCairoDestroy = false;
     private boolean m_inCairoMessageEx = false;
     private boolean m_inCairoLoad = false;
+    private boolean m_inCairoLoadCollection = false;    
+    private String m_refreshCollection = "";
     private boolean m_inCairoDelete = false;
     private boolean m_inCairoEdit = false;
     private boolean m_inCairoEditNew = false;
@@ -225,7 +227,7 @@ public class Translator {
         "cIABMClient_Save", "save",
         "cIABMClient_Terminate", "terminate",
         "cIABMClient_Copy", "copy",
-        "getCIABMClient_Title", "title",
+        "getCIABMClient_Title", "getTitle",
         "cIABMClient_Validate", "validate",
         "getCIEditGeneric_ObjAbm", "getDialog",
         "setCIEditGeneric_TreeId", "setTreeId",
@@ -6196,7 +6198,12 @@ public class Translator {
                 words[i] = "\"\\r\"";
             }
             else if (words[i].equalsIgnoreCase("me")) {
-                words[i] = "this";
+                if(m_translateToCairo) {
+                    words[i] = "self";
+                }
+                else {
+                    words[i] = "this";
+                }
             }
             expression += words[i];// + " ";
         }
@@ -6317,6 +6324,7 @@ public class Translator {
         //
         if (className.isEmpty()
                 || className.toLowerCase().equals("this")
+                || className.toLowerCase().equals("self")
                 || className.toLowerCase().equals("me")) {
             itrFile = m_collFiles.iterator();
             while(itrFile.hasNext()) {
@@ -6340,6 +6348,7 @@ public class Translator {
         // have the sinonyms 'this' or 'me'
         //
         if (className.toLowerCase().equals("this")
+                || className.toLowerCase().equals("self")
                 || className.toLowerCase().equals("me")) {
             className = m_javaClassName;
         }
@@ -8197,6 +8206,14 @@ public class Translator {
         m_onCatchBlock = false;
         m_scalaCode = "";
         
+        // scala
+        //
+        m_caseClassDataFields = "";
+        m_caseClassPrefix = "";
+        m_formData = "";
+        m_writeData = "";
+        m_createUpdateParamList = "";
+        
         initInCairoFlags();
 
         if (name.contains(".")) {
@@ -8555,6 +8572,16 @@ public class Translator {
             subClasses += m_collEnums.get(i) + newline;
         }
         return subClasses;
+    }
+    
+    public String getScalaFiles() {
+        return 
+                "// Controller \n\n"
+                + getControllerFile()
+                + "\n\n// Model\n\n"
+                + getModelFile()
+                + "\n\n// Router\n\n"
+                + getRouter();
     }
 
     public void addEventListenerInterface() {
@@ -9194,6 +9221,8 @@ public class Translator {
         m_inCairoDestroy = false;
         m_inCairoMessageEx = false;
         m_inCairoLoad = false;
+        m_inCairoLoadCollection = false;
+        m_refreshCollection = "";
         m_inCairoDelete = false;
         m_inCairoEdit = false;
         m_inCairoEditNew = false;
@@ -9224,6 +9253,9 @@ public class Translator {
         }
         else if (name.equals("load")) {
             m_inCairoLoad = true;
+        }
+        else if (name.equals("loadCollection")) {
+            m_inCairoLoadCollection = true;
         }
         else if (name.equals("cIEditGeneric_Delete")) {
             m_inCairoDelete = true;
@@ -9256,13 +9288,20 @@ public class Translator {
             return translateLineInCairoDestroy(strLine);
         }
         else if (m_inCairoTerminate) {
-            return translateLineInCairoTerminate(strLine);
+            return translateLineInCairoTerminate(strLine, originalLine);
         }
         else if (m_inCairoMessageEx) {
             return translateLineInCairoMessageEx(strLine);
         }
         else if (m_inCairoLoad) {
             return translateLineInCairoLoad(strLine);
+        }
+        else if (m_inCairoLoadCollection) {
+            writeControllerClassData(strLine);
+            writeControllerFormData(strLine);
+            writeControllerWriteData(strLine);
+            writeCreateUpdateParamList(strLine);
+            return translateLineInCairoLoadCollection(strLine, originalLine);
         }
         else if (m_inCairoDelete) {
             return translateLineInCairoDelete(strLine);
@@ -9296,7 +9335,7 @@ public class Translator {
                 return "K_NAME";
             if (name.trim().equals("K_CODIGO"))
                 return "K_CODE";
-            if (name.trim().equals("K_ACTIVE"))
+            if (name.trim().equals("K_ACTIVO"))
                 return "K_ACTIVE";
             if (name.trim().equals("m_nombre"))
                 return "m_name";
@@ -9306,8 +9345,14 @@ public class Translator {
                 return "m_active";
             if (name.trim().equals("m_objTree"))
                 return "m_listController";
-            if (name.trim().toLowerCase().startsWith("csc")) 
-                return replaceIdentifierCamel(name);
+            if (name.trim().toLowerCase().startsWith("csc")) {
+                name = replaceIdentifierCamel(name);
+                if (G.endLike(name.toUpperCase(), "NOMBRE"))
+                    name = name.toUpperCase().replace("NOMBRE", "NAME");
+                else if (G.endLike(name.toUpperCase(), "CODIGO"))
+                    name = name.toUpperCase().replace("CODIGO", "CODE");
+                return name;
+            }
             return name;
         }
         else {
@@ -9318,15 +9363,7 @@ public class Translator {
     String deleteReturnLine = "{\n          return Cairo.Promises.resolvedPromise(false);\n        }";
     
     private String translateLineInCairoDelete(String strLine) {
-        String trimedLine = strLine.trim();
-        if (G.beginLike(trimedLine, "sqlstmt") ||
-                G.beginLike(trimedLine, "var sqlstmt = null;")) {
-            return "";
-        }
-        
-        return strLine
-                .replaceAll("\\{ return false; \\}", deleteReturnLine)
-                .replaceAll("return Cairo.Database.execute\\(sqlstmt, ", "return Cairo.Database.execute(");
+        return "";
     }
     
     private String translateLineInCairoEdit(String strLine) {
@@ -9384,14 +9421,15 @@ public class Translator {
     private String translateLineInCairoCopy(String strLine) {
         return strLine
                 .replace("self.terminate();", "updateList();\n")
-                .replace("m_isNew = true;", "m_isNew = true;\n\n        m_listController.updateEditorKey(self, Cairo.Constants.NO_ID);\n");
+                .replace("m_isNew = true;", "m_isNew = true;\n\n        m_listController.updateEditorKey(self, Cairo.Constants.NO_ID);");
     }
     
     private String translateLineInCairoSave(String strLine) {
         String trimedLine = strLine.trim();
         if (G.beginLike(trimedLine, "var register = null;") ||
                 G.beginLike(trimedLine, "var fields = null;") ||
-                G.beginLike(trimedLine, "var property = null;")) {
+                G.beginLike(trimedLine, "var property = null;") ||
+                G.beginLike(trimedLine, "//Error al grabar ")) {
             return "";
         }
         else if (G.beginLike(trimedLine, "if (!Cairo.Database.saveEx(register, , Cairo.General.Constants.")) {
@@ -9400,7 +9438,7 @@ public class Translator {
             trimedLine = trimedLine.replace(", C_MODULE, ", "C_MODULE,\n            ");
             trimedLine = getTabs() + "return Cairo.Database.saveEx(\n            register,\n            false,\n            Cairo.General.Constants" + trimedLine + ".then(\n\n"
                     + getTabs() + "  function(result) {\n"
-                    + getTabs() + "    if(result) {";
+                    + getTabs() + "    if(result.success) {";
             m_tabCount += 4;
             return trimedLine;
         }
@@ -9410,7 +9448,17 @@ public class Translator {
                         + getTabs() + "else {\n" 
                         + getTabs() + "  return false;\n" 
                         + getTabs() + "}\n";
-            trimedLine = strLine + "\n" + trimedLine;
+            trimedLine = "              return load(result.data.getId()).then(\n" 
+                    + "                function (success) {\n"
+                    + "                  if(success) {\n"
+                    + "                    updateList();\n"
+                    + "                    m_listController.updateEditorKey(self, m_id);\n"
+                    + "                  };\n"
+                    + "                  m_isNew = false;\n"
+                    + "                  return success;\n"
+                    + "                }\n"
+                    + "              );\n"                    
+                    + trimedLine;
             m_tabCount -= 2;
             trimedLine += getTabs() + "});\n";
             return trimedLine;
@@ -9421,7 +9469,35 @@ public class Translator {
                     .replaceAll("fields = register.getFields\\(\\);", "var fields = register.getFields();")
                     .replaceAll("property = m_dialog.getProperties\\(\\).item\\(_i\\);", "var property = m_dialog.getProperties().item(_i);")
                     .replaceAll("fields.add2\\(", "fields.add(")
-                    .replaceAll("//Error al grabar ", "\n" + getTabs() + "// Error saving ");
+                    .replaceAll("//Error al grabar ", "\n" + getTabs() + "// Error saving ")
+                    .replace("if (m_copy) {", "var apiPath = Cairo.Database.getAPIVersion();\n        register.setPath(apiPath + \"general/" 
+                                + m_javaClassName.substring(1).toLowerCase() 
+                                + "\");\n\n        if(m_copy) {");
+        }
+    }
+    
+    private String translateLineInCairoLoadCollection(String strLine, String originalLine) {
+        if (originalLine.equals("End Function")) {
+            
+            m_refreshCollection = "\n" 
+                    + "      var refreshCollection = function() {\n\n"
+                    + "        m_dialog.setTitle(m_name);\n\n"
+                    + "        var properties = m_dialog.getProperties();\n"
+                    + m_refreshCollection
+                    + "\n        return m_dialog.showValues(properties);\n"
+                    + "      };\n";
+            
+            return strLine + m_refreshCollection;
+        }
+        else {
+            if (G.beginLike(strLine.trim(), "var elem = properties.add(null")) {
+                m_refreshCollection += "\n" + strLine.replace(".add(null, ", ".item(");
+            } else if (G.beginLike(strLine.trim(), "elem.setValue(")) {
+                m_refreshCollection += strLine;
+            } else if (G.beginLike(strLine.trim(), "elem.setSelectId(")) {
+                m_refreshCollection += strLine;
+            }
+            return strLine;
         }
     }
     
@@ -9433,8 +9509,10 @@ public class Translator {
             return "";
         }
         else if (G.beginLike(trimedLine, "if (!Cairo.Database.openRs(sqlstmt, rs,")) {
-            String rtn = getTabs() 
-                    + "return Cairo.Database.getData(\"load[" + m_javaClassName + "]\", id).then(\n"
+            String rtn = getTabs()
+                    + "var apiPath = Cairo.Database.getAPIVersion();\n"
+                    + getTabs()
+                    + "return Cairo.Database.getData(\"load[\" + apiPath + \"general/" + m_javaClassName.substring(1).toLowerCase() + "]\", id).then(\n"
                     + getTabs() + C_TAB + "function(response) {\n";
             m_tabCount += 2;
             return rtn;
@@ -9445,7 +9523,7 @@ public class Translator {
         }
         else if (G.beginLike(trimedLine, "if (rs.isEOF()) {")) {
             m_tabCount--;
-            String rtn = getTabs() + "if(response.success === false) { return false; }\n\n" + getTabs() + "if(response.data.length === 0) {\n";
+            String rtn = getTabs() + "if(response.success !== true) { return false; }\n\n" + getTabs() + "if(response.data.id === Cairo.Constants.NO_ID) {\n";
             m_tabCount++;
             return rtn;
         }
@@ -9484,24 +9562,46 @@ public class Translator {
         return strLine;
     }
     
-    private String translateLineInCairoTerminate(String strLine) {
-        String[] lines = {
-            "// **TODO:** on error resume next found !!!",
-            "var _rtn = null;",
-            "_rtn = true;",
-        };
-        String trimedLine = strLine.trim();
-        for (int i = 0; i < lines.length; i++) {
-            if (trimedLine.equals(lines[i]) ) {
-                return "";
-            }        
+    private String translateLineInCairoTerminate(String strLine, String originalLine) {
+        
+        if(originalLine.trim().equals("End Function")) {
+            String updateList =
+              "      var updateList = function() {\n"
+            + "        if(m_id == Cairo.Constants.NO_ID) { return; }\n"
+            + "        if(m_listController == null) { return; }\n\n"
+            + "        if(m_isNew) {\n"
+            + "          m_listController.addLeave(m_id, m_branchId);\n"
+            + "        }\n"
+            + "        else {\n"
+            + "          m_listController.refreshBranch(m_id, m_branchId);\n"
+            + "        }\n"
+            + "      };\n\n"
+            + "      self.terminate = function() {\n\n"
+            + "        m_editing = false;\n\n"
+            + "        try {\n"
+            + "          if(m_listController != null) {\n"
+            + "            updateList();\n"
+            + "            m_listController.removeEditor(self);\n"
+            + "          }\n"
+            + "        }\n"
+            + "        catch (ignored) {\n"
+            + "          Cairo.logError('Error in terminate', ignored);\n"
+            + "        }\n"
+            + "      };\n\n"
+            + "      self.getPath = function() {\n"
+            + "        return \"#general/" + m_javaClassName.substring(1).toLowerCase() + "/\" + m_id.toString();\n"
+            + "      };\n\n"
+            + "      self.getEditorName = function() {\n"
+            + "        var id = m_id ? m_id.toString() : \"N\" + (new Date).getTime().toString();\n"
+            + "        return \"" + m_javaClassName.substring(1).toLowerCase() + "\" + id;\n"
+            + "      };\n\n";
+        
+            
+            return updateList;
         }
-        strLine = strLine.replace("var _rtn = null;", "");
-        strLine = strLine.replace("return _rtn;", "return;");
-        if (strLine.trim().equals("}\n      \n        return;\n      };"))
-            return "        }\n      };\n";
-        else
-            return strLine;
+        else {
+            return "";
+        }
     }
     
     private String translateLineInCairoValidate(String strLine) {
@@ -9592,7 +9692,9 @@ public class Translator {
         strLine = strLine.replaceAll(" case  ", " case ");
         strLine = strLine.replaceAll("Cairo.Constants.self.val\\(", "Cairo.Util.val(");
         strLine = strLine.replaceAll("cUtil.valEmpty\\(", "Cairo.Util.valEmpty(");
-        strLine = strLine.replaceAll("csTypes.cS", "Cairo.Constants.Types.");
+        
+        strLine = replaceIdentifierToLowerCase(strLine, "csTypes.cS", "Cairo.Constants.Types.");
+        
         strLine = strLine.replaceAll("Cairo.Constants.c_DebeIndicarNombre", "Cairo.Constants.MUST_SET_A_NAME");
         strLine = strLine.replaceAll("c_get_codigo_from_id", "Cairo.Constants.GET_CODE_FROM_ID");
         strLine = strLine.replaceAll("\\(C_C\\+", "(Cairo.Constants.COPY_OF +");
@@ -9641,9 +9743,13 @@ public class Translator {
         strLine = strLine.replaceAll("Dialogs.PropertySubType.CUIT", "Dialogs.PropertySubType.taxId");
         strLine = strLine.replaceAll("Dialogs.PropertySubType.TextButton", "Dialogs.PropertySubType.textButton");
         strLine = strLine.replaceAll("Dialogs.PropertySubType.TextButtonEx", "Dialogs.PropertySubType.textButtonEx");
-        strLine = strLine.replaceAll("setValue\\(Integer.parseInt\\(m_activo\\)\\);", "setValue(m_activo === true ? 1 : 0);");
+        strLine = strLine.replaceAll("setValue\\(Integer.parseInt\\(m_active\\)\\);", "setValue(m_active === true ? 1 : 0);");
+        strLine = strLine.replaceAll("elem.setTable\\(Cairo.Tables.", "elem.setSelectTable(Cairo.Tables.");
         strLine = strLine.replaceAll(".securityCanAccess\\(", ".hasPermissionTo(");
         strLine = strLine.replaceAll(".getHelpId\\(\\)", ".getSelectId()");
+        strLine = strLine.replaceAll("csConstIds.cSNEW", "Cairo.Constants.NEW_ID");
+        strLine = strLine.replaceAll("register.setID", "register.setId");
+        strLine = strLine.replaceAll("C_EditGenericEdit", "Cairo.Constants.EDIT_FUNCTION");
         
         return strLine;
     }
@@ -9703,7 +9809,33 @@ public class Translator {
             }
         } while (i >= 0);
         return strLine;
-    }    
+    }
+    
+    private String replaceIdentifierToLowerCase(String strLine, String toSearch, String replaceWith) {
+        int i;
+        do {
+            i = strLine.toLowerCase().indexOf(toSearch.toLowerCase());
+            if (i >= 0) {
+                
+                int t, r;
+                t = r = i + toSearch.length();
+
+                int s = strLine.length();
+                while (t <= s) {                    
+                    char c = strLine.charAt(t);
+                    if (!(Character.isLetter(c) 
+                            || Character.isDigit(c)
+                            || c == '_')) {
+                        strLine = strLine.substring(0, i) + replaceWith + strLine.substring(r, t).toLowerCase() + strLine.substring(t, s); 
+                        break;
+                    }                        
+                    t++;
+                }
+            }
+        } while (i >= 0);
+        return strLine;
+    }
+    
     private String addJavaScriptHeader() {
         String header = "(function() {\n  \"use strict\";\n\n";
         header += "  Cairo.module(\"" + m_javaClassName.substring(1) + ".Edit\", function(Edit, Cairo, Backbone, Marionette, $, _) {\n\n";
@@ -9747,7 +9879,10 @@ public class Translator {
         "//    .Value = C_CopiaDe & .Value",
         "//  End With",
         "// Este objeto puede no cumplir con la interfaz esperada, asi que si hay un error no",
-        "// le doy bola"
+        "// le doy bola",
+        "fields.setHaveLastUpdate(",
+        "fields.setHaveWhoModify(",
+        "// Error saving "
     };
     private String removeCairoLines(String strLine) {
         String trimedLine = G.ltrim(strLine);
@@ -9811,8 +9946,6 @@ public class Translator {
     }
     private String cairoTreeListControllerGetIdentifierName(String name) {
         switch (name) {
-            case "Proveedor":
-                name = "proveedor";
             default:
                 name = name.toLowerCase();
         }
@@ -9820,8 +9953,6 @@ public class Translator {
     }
     private String cairoTreeListControllerGetlowerName(String name) {
         switch (name) {
-            case "Proveedor":
-                name = "proveedor";
             default:
                 name = name.toLowerCase();
         }
@@ -9850,63 +9981,723 @@ public class Translator {
         String moduleName = m_javaClassName.substring(1);
         String pluralName = cairoTreeListControllerGetPluralName(moduleName); //"Proveedores";
         String identifierName = cairoTreeListControllerGetIdentifierName(moduleName); //"proveedor";
+        String upperModuleName = moduleName.toUpperCase();
         String lowerName = cairoTreeListControllerGetlowerName(moduleName); //"proveedor";
         String identifierPluralName = cairoTreeListControllerGetIdentifierPluralName(moduleName); //"proveedores";
         String tableName = cairoTreeListControllerGetTableName(moduleName); //"PROVEEDOR";
         
-        String strLine = "  Cairo.module(\"" + moduleName + ".List\", function(List, Cairo, Backbone, Marionette, $, _) {\n" +
-                        "    List.Controller = {\n" +
-                        "      list: function() {\n" +
-                        "\n" +
-                        "        var self = this;\n" +
-                        "\n" +
-                        "        /*\n" +
-                        "         this function will be called by the tab manager every time the\n" +
-                        "         view must be created. when the tab is not visible the tab manager\n" +
-                        "         will not call this function but only make the tab visible\n" +
-                        "         */\n" +
-                        "        var createTreeDialog = function(tabId) {\n" +
-                        "\n" +
-                        "          // ListController properties and methods\n" +
-                        "          //\n" +
-                        "          self.entityInfo = new Backbone.Model({\n" +
-                        "            entitiesTitle: \"" + pluralName + "\",\n" +
-                        "            entityName: \"" + identifierName + "\",\n" +
-                        "            entitiesName: \"" + identifierPluralName + "\"\n" +
-                        "          });\n" +
-                        "\n" +
-                        "          self.showBranch = function(branchId) {\n" +
-                        "            Cairo.log(\"Loading nodeId: \" + branchId);\n" +
-                        "            Cairo.Tree.List.Controller.listBranch(branchId, Cairo.Tree.List.Controller.showItems, self);\n" +
-                        "          };\n" +
-                        "\n" +
-                        "          // progress message\n" +
-                        "          //\n" +
-                        "          Cairo.LoadingMessage.show(\"" + pluralName + "\", \"Loading " + lowerName + " from Crowsoft Cairo server.\");\n" +
-                        "\n" +
-                        "          // create the tree region\n" +
-                        "          //\n" +
-                        "          Cairo.addRegions({ " + identifierName + "TreeRegion: tabId });\n" +
-                        "\n" +
-                        "          // create the dialog\n" +
-                        "          //\n" +
-                        "          Cairo.Tree.List.Controller.list(\n" +
-                        "            Cairo.Tables." + tableName + ",\n" +
-                        "            new Cairo.Tree.List.TreeLayout({ model: self.entityInfo }),\n" +
-                        "            Cairo." + identifierName + "TreeRegion,\n" +
-                        "            self);\n" +
-                        "\n" +
-                        "        };\n" +
-                        "\n" +
-                        "        // create the tab\n" +
-                        "        //\n" +
-                        "        Cairo.mainTab.showTab(\"" + pluralName + "\", \"" + identifierName + "TreeRegion\", \"#general/" + identifierPluralName + "\", createTreeDialog);\n" +
-                        "\n" +
-                        "      }\n" +
-                        "    };\n" +
-                        "  });\n";        
+        String strLine = 
+            "  Cairo.module(\"" + moduleName + ".List\", function(List, Cairo, Backbone, Marionette, $, _) {\n"
+          + "    List.Controller = {\n"
+          + "      list: function() {\n"
+          + "\n"
+          + "        var self = this;\n"
+          + "\n"
+          + "        /*\n"
+          + "         this function will be called by the tab manager every time the\n"
+          + "         view must be created. when the tab is not visible the tab manager\n"
+          + "         will not call this function but only make the tab visible\n"
+          + "         */\n"
+          + "        var createTreeDialog = function(tabId) {\n"
+          + "\n"
+          + "          var editors = Cairo.Editors." + identifierName + "Editors || Cairo.Collections.createCollection(null);\n"
+          + "          Cairo.Editors." + identifierName + "Editors = editors;\n"
+          + "\n"
+          + "          // ListController properties and methods\n"
+          + "          //\n"
+          + "          self.entityInfo = new Backbone.Model({\n"
+          + "            entitiesTitle: \"" + pluralName + "\",\n"
+          + "            entityName: \"" + identifierName + "\",\n"
+          + "            entitiesName: \"" + identifierPluralName + "\"\n"
+          + "          });\n"
+          + "\n"
+          + "          self.showBranch = function(branchId) {\n"
+          + "            Cairo.log(\"Loading nodeId: \" + branchId);\n"
+          + "            Cairo.Tree.List.Controller.listBranch(branchId, Cairo.Tree.List.Controller.showItems, self);\n"
+          + "          };\n"
+          + "\n"
+          + "          self.addLeave = function(id, branchId) {\n"
+          + "            try {\n"
+          + "              Cairo.Tree.List.Controller.addLeave(branchId, id, self);\n"
+          + "            }\n"
+          + "            catch(ignore) {\n"
+          + "              Cairo.log(\"Error when adding this item to the branch\\n\\n\" + ignore.message);\n"
+          + "            }\n"
+          + "          };\n"
+          + "\n"
+          + "          self.refreshBranch = function(id, branchId) {\n"
+          + "            try {\n"
+          + "              Cairo.Tree.List.Controller.refreshBranchIfActive(branchId, id, self);\n"
+          + "            }\n"
+          + "            catch(ignore) {\n"
+          + "              Cairo.log(\"Error when refreshing a branch\\n\\n\" + ignore.message);\n"
+          + "            }\n"
+          + "          };\n"
+          + "\n"
+          + "          var getIndexFromEditor = function(editor) {\n"
+          + "            var count = editors.count();\n"
+          + "            for(var i = 0; i < count; i += 1) {\n"
+          + "              if(editors.item(i).editor === editor) {\n"
+          + "                return i;\n"
+          + "              }\n"
+          + "            }\n"
+          + "            return -1;\n"
+          + "          };\n"
+          + "\n"
+          + "          self.removeEditor = function(editor) {\n"
+          + "            var index = getIndexFromEditor(editor);\n"
+          + "            if(index >= 0) {\n"
+          + "              editors.remove(index);\n"
+          + "            }\n"
+          + "          };\n"
+          + "\n"
+          + "          var getKey = function(id) {\n"
+          + "            if(id === Cairo.Constants.NO_ID) {\n"
+          + "              return \"new-id:\" + (new Date).getTime().toString()\n"
+          + "            }\n"
+          + "            else {\n"
+          + "              return \"k:\" + id.toString();\n"
+          + "            }\n"
+          + "          };\n"
+          + "\n"
+          + "          self.updateEditorKey = function(editor, newId) {\n"
+          + "            var index = getIndexFromEditor(editor);\n"
+          + "            if(index >= 0) {\n"
+          + "              var editor = editors.item(index);\n"
+          + "              editors.remove(index);\n"
+          + "              var key = getKey(newId);\n"
+          + "              editors.add(editor, key);\n"
+          + "            }\n"
+          + "          };\n"
+          + "\n"
+          + "          self.edit = function(id, treeId, branchId) {\n"
+          + "            var key = getKey(id);\n"
+          + "            if(editors.contains(key)) {\n"
+          + "              editors.item(key).dialog.showDialog();\n"
+          + "            }\n"
+          + "            else {\n"
+          + "              var editor = Cairo." + moduleName + ".Edit.Controller.getEditor();\n"
+          + "              var dialog = Cairo.Dialogs.Views.Controller.newDialog();\n"
+          + "\n"
+          + "              editor.setTree(self);\n"
+          + "              editor.setDialog(dialog);\n"
+          + "              editor.setTreeId(treeId);\n"
+          + "              editor.setBranchId(branchId);\n"
+          + "              editor.edit(id);\n"
+          + "\n"
+          + "              editors.add({editor: editor, dialog: dialog}, key);\n"
+          + "            }\n"
+          + "          };\n"
+          + "\n"
+          + "          self.destroy = function(id, treeId, branchId) {\n"
+          + "            if(!Cairo.Security.hasPermissionTo(Cairo.Security.Actions.General.DELETE_" + upperModuleName + ")) {\n"
+          + "              return Cairo.Promises.resolvedPromise(false);\n"
+          + "            }\n"
+          + "            var apiPath = Cairo.Database.getAPIVersion();\n"
+          + "            return Cairo.Database.destroy(apiPath + \"general/" + identifierName + "\", id, Cairo.Constants.DELETE_FUNCTION, \"" + moduleName + "\").success(\n"
+          + "              function() {\n"
+          + "                try {\n"
+          + "                  var key = getKey(id);\n"
+          + "                  if(editors.contains(key)) {\n"
+          + "                    editors.item(key).dialog.closeDialog();\n"
+          + "                  }\n"
+          + "                }\n"
+          + "                catch(ignore) {\n"
+          + "                  Cairo.log('Error closing dialog after delete');\n"
+          + "                }\n"
+          + "                return true;\n"
+          + "              }\n"
+          + "            );\n"
+          + "          };\n"
+          + "\n"
+          + "          // progress message\n"
+          + "          //\n"
+          + "          Cairo.LoadingMessage.show(\"" + pluralName + "\", \"Loading " + lowerName + " from Crowsoft Cairo server.\");\n"
+          + "\n"
+          + "          // create the tree region\n"
+          + "          //\n"
+          + "          Cairo.addRegions({ " + identifierName + "TreeRegion: tabId });\n"
+          + "\n"
+          + "          // create the dialog\n"
+          + "          //\n"
+          + "          Cairo.Tree.List.Controller.list(\n"
+          + "            Cairo.Tables." + tableName + ",\n"
+          + "            new Cairo.Tree.List.TreeLayout({ model: self.entityInfo }),\n"
+          + "            Cairo." + identifierName + "TreeRegion,\n"
+          + "            self);\n"
+          + "\n"
+          + "        };\n"
+          + "\n"
+          + "        var showTreeDialog = function() {\n"
+          + "          Cairo.Tree.List.Controller.showTreeDialog(self);\n"
+          + "        };\n"
+          + "\n"
+          + "        var closeTreeDialog = function() {\n"
+          + "\n"
+          + "        }\n"
+          + "\n"
+          + "        // create the tab\n"
+          + "        //\n"
+          + "        Cairo.mainTab.showTab(\"" + pluralName + "\", \"" + identifierName + "TreeRegion\", \"#general/" + identifierPluralName + "\", createTreeDialog, closeTreeDialog, showTreeDialog);\n"
+          + "\n"
+          + "      }\n"
+          + "    };\n"
+          + "  });\n";                
         return strLine;
     }
+    
+    // server: SCALA CODE
+
+    /*
+     
+     * CONTROLLER
+     
+     */
+    
+    private static final String m_controllerImports = 
+            "import controllers._\n"
+          + "import play.api.mvc._\n"
+          + "import play.api.data._\n"
+          + "import play.api.data.Forms._\n"
+          + "import actions._\n"
+          + "import play.api.Logger\n"
+          + "import play.api.libs.json._\n"
+          + "import models.cairo.modules.general._\n"
+          + "import models.cairo.system.security.CairoSecurity\n"
+          + "import models.cairo.system.database.DBHelper\n";
+
+    private String m_controllerClassData = "case class XxxzData(CASE-CLASS-FIELDS)";
+    
+    private String m_controllerObject = 
+          "object Xxxzs extends Controller with ProvidesUser {\n\n"
+            
+        + "  val xxxzForm = Form(\n"
+        + "    mapping(\n"
+        + "[FORM-DATA]"   
+        + "  )(XxxzData.apply)(XxxzData.unapply))\n\n"   
+
+        + "  implicit val xxxzWrites = new Writes[Xxxz] {\n"
+        + "    def writes(xxxz: Xxxz) Json.obj(\n"
+        + "[WRITES-DATA]"   
+        + "    )\n"   
+        + "  }\n\n"   
+            
+        + "  def get(id: Int) = GetAction { implicit request =>\n"
+        + "    LoggedIntoCompanyResponse.getAction(request, CairoSecurity.hasPermissionTo(S.LIST_XXXZ), { user =>\n"
+        + "      Ok(Json.toJson(Xxxz.get(user, id)))\n"
+        + "    })\n"
+        + "  }\n\n"
+
+        + "  def update(id: Int) = PostAction { implicit request =>\n"
+        + "    Logger.debug(\"in xxxzs.update\")\n"
+        + "    xxxzForm.bindFromRequest.fold(\n"
+        + "      formWithErrors => {\n"
+        + "        Logger.debug(s\"invalid form: ${formWithErrors.toString}\")\n"
+        + "        BadRequest\n"
+        + "      },\n"
+        + "      xxxz => {\n"
+        + "        Logger.debug(s\"form: ${xxxz.toString}\")\n"
+        + "        LoggedIntoCompanyResponse.getAction(request, CairoSecurity.hasPermissionTo(S.EDIT_XXXZ), { user =>\n"
+        + "          Ok(\n"
+        + "            Json.toJson(\n"
+        + "              Xxxz.update(user, Xxxz(id, [UPDATE-PARAM-LIST]))))\n"
+        + "        })\n"
+        + "      }\n"
+        + "    )\n"
+        + "  }\n\n"
+
+        + "  def create = PostAction { implicit request =>\n"
+        + "    Logger.debug(\"in xxxzs.create\")\n"
+        + "    xxxzForm.bindFromRequest.fold(\n"
+        + "      formWithErrors => {\n"
+        + "        Logger.debug(s\"invalid form: ${formWithErrors.toString}\")\n"
+        + "        BadRequest\n"
+        + "      },\n"
+        + "      xxxz => {\n"
+        + "        Logger.debug(s\"form: ${xxxz.toString}\")\n"
+        + "        LoggedIntoCompanyResponse.getAction(request, CairoSecurity.hasPermissionTo(S.NEW_XXXZ), { user =>\n"
+        + "          Ok(\n"
+        + "            Json.toJson(\n"
+        + "              Xxxz.create(user, Xxxz([CREATE-PARAM-LIST]))))\n"
+        + "        })\n"
+        + "      }\n"
+        + "    )\n"
+        + "  }\n\n"
+
+        + "  def delete(id: Int) = PostAction { implicit request =>\n"
+        + "    Logger.debug(\"in xxxzs.delete\")\n"
+        + "    LoggedIntoCompanyResponse.getAction(request, CairoSecurity.hasPermissionTo(S.DELETE_XXXZ), { user =>\n"
+        + "      Xxxz.delete(user, id)\n"
+        + "      // Backbonejs requires at least an empty json object in the response\n"
+        + "      // if not it will call errorHandler even when we responded with 200 OK :P\n"
+        + "      Ok(JsonUtil.emptyJson)\n"
+        + "    })\n"
+        + "  }\n\n";            
+
+    private String m_caseClassDataFields = "";
+    private String m_caseClassPrefix = "";
+    private String m_caseClassDataLastField = "";
+    
+    private void writeControllerClassData(String strLine) {
+      if (strLine.contains("var elem = properties.add(null, Cairo.General.Constants.")) {
+          m_caseClassDataLastField = strLine.trim().replace("var elem = properties.add(null, Cairo.General.Constants.", "");
+          m_caseClassDataLastField = m_caseClassDataLastField.substring(0, m_caseClassDataLastField.indexOf(")"));
+          
+          if (m_caseClassPrefix.isEmpty()) {
+              m_caseClassPrefix = m_caseClassDataLastField.substring(0, m_caseClassDataLastField.indexOf("_") + 1);
+          }
+          
+          if (m_caseClassDataLastField.startsWith(m_caseClassPrefix)) {
+            m_caseClassDataLastField = m_caseClassDataLastField.substring(m_caseClassPrefix.length());
+          }
+          
+          m_caseClassDataLastField = toCamel(m_caseClassDataLastField);
+          
+          m_caseClassDataFields += m_caseClassDataLastField + ": ";
+      }
+      else if(strLine.contains("setValue")) {
+          String expression = strLine.substring(strLine.indexOf("(") + 1, strLine.indexOf(")"));
+          if (expression.equals("m_active === true ? 1 : 0")) {
+              m_caseClassDataFields += "active: Boolean, ";
+          }
+          else {
+            IdentifierInfo info = getIdentifierInfo(expression);
+            m_caseClassDataFields += info.variable.dataType + ", ";
+          }
+      }
+      
+      else if(strLine.contains("setSelectId")) {
+          updateLastFieldType("Int");
+          //m_caseClassDataFields += m_caseClassDataLastField.substring(0, m_caseClassDataLastField.indexOf("_")) + "_name"  + ": String, ";
+      }
+    }
+    
+    private void updateLastFieldType(String dataType) {
+        for (int i = m_caseClassDataFields.length()-1; i > 0; i--) {
+            if (m_caseClassDataFields.charAt(i) == ':') {
+                m_caseClassDataFields = m_caseClassDataFields.substring(0, i + 2) + dataType + ", ";
+                return;
+            }
+        }
+    }
+    
+    private String m_formDataLastField = "";
+    private String m_formData = "";
+    
+    private void writeControllerFormData(String strLine) {
+        if (strLine.contains("var elem = properties.add(null, Cairo.General.Constants.")) {
+            m_formDataLastField = strLine.trim().replace("var elem = properties.add(null, Cairo.General.Constants.", "");
+            m_formDataLastField = m_formDataLastField.substring(0, m_formDataLastField.indexOf(")"));
+            m_formData += "      C." + m_formDataLastField + " -> ";
+        } else if (strLine.contains("setValue")) {
+            String expression = strLine.substring(strLine.indexOf("(") + 1, strLine.indexOf(")"));
+            if (expression.equals("m_active === true ? 1 : 0")) {
+                m_formData += "      DBHelper.ACTIVE -> boolean,\n";
+            } else if (expression.equals("m_name")) {
+                m_formData += "nonEmptyText,\n";
+            } else {
+                IdentifierInfo info = getIdentifierInfo(expression);
+                m_formData += getFormType(info.variable.dataType) + ",\n";
+            }
+        }        
+    }
+    
+    private String m_writeDataLastField = "";
+    private String m_writeData = "";
+    private String m_writeDataLastField2 = "";
+    
+    private void writeControllerWriteData(String strLine) {
+        if (strLine.contains("var elem = properties.add(null, Cairo.General.Constants.")) {
+            m_writeDataLastField = strLine.trim().replace("var elem = properties.add(null, Cairo.General.Constants.", "");
+            m_writeDataLastField = m_writeDataLastField.substring(0, m_writeDataLastField.indexOf(")"));
+            m_writeData += "      C." + m_writeDataLastField + " -> ";
+            
+            m_writeDataLastField2 = strLine.trim().replace("var elem = properties.add(null, Cairo.General.Constants.", "");
+            m_writeDataLastField2 = m_writeDataLastField2.substring(0, m_writeDataLastField2.indexOf(")"));
+
+            if (m_caseClassPrefix.isEmpty()) {
+                m_caseClassPrefix = m_caseClassDataLastField.substring(0, m_caseClassDataLastField.indexOf("_") + 1);
+            }
+
+            if (m_writeDataLastField2.startsWith(m_caseClassPrefix)) {
+              m_writeDataLastField2 = m_writeDataLastField2.substring(m_caseClassPrefix.length());
+            }
+
+            m_writeDataLastField2 = toCamel(m_writeDataLastField2);
+            
+        } else if (strLine.contains("setValue")) {
+            String expression = strLine.substring(strLine.indexOf("(") + 1, strLine.indexOf(")"));
+            if (expression.equals("m_active === true ? 1 : 0")) {
+                m_writeData += "      DBHelper.ACTIVE -> boolean,\n";
+            } else if (expression.equals("m_name")) {
+                m_writeData += "nonEmptyText,\n";
+            } else {
+                IdentifierInfo info = getIdentifierInfo(expression);
+                m_writeData += "Json.toJson(xxxz." + m_writeDataLastField2 + "),\n";
+            }
+        }
+        else if(strLine.contains("setSelectId")) {
+            String prefix = m_writeDataLastField.substring(0, m_writeDataLastField.indexOf("_"));
+            m_writeData += "      " + prefix
+                    + "_NAME -> Json.toJson(xxxz." 
+                    + prefix.toLowerCase() + "_name),\n";
+        }
+    }
+    
+    private String m_createUpdateParamList = "";
+    private String m_paramListLastField = "";
+    
+    private void writeCreateUpdateParamList(String strLine) {
+        if (strLine.contains("var elem = properties.add(null, Cairo.General.Constants.")) {
+            m_paramListLastField = strLine.trim().replace("var elem = properties.add(null, Cairo.General.Constants.", "");
+            m_paramListLastField = m_paramListLastField.substring(0, m_paramListLastField.indexOf(")"));
+
+            if (m_caseClassPrefix.isEmpty()) {
+                m_caseClassPrefix = m_caseClassDataLastField.substring(0, m_caseClassDataLastField.indexOf("_") + 1);
+            }
+
+            if (m_paramListLastField.startsWith(m_caseClassPrefix)) {
+              m_paramListLastField = m_paramListLastField.substring(m_caseClassPrefix.length());
+            }
+
+            m_paramListLastField = toCamel(m_paramListLastField);
+
+            m_createUpdateParamList += "xxxz." + m_paramListLastField + ", ";
+            
+        } else if (strLine.contains("setValue")) {
+            String expression = strLine.substring(strLine.indexOf("(") + 1, strLine.indexOf(")"));
+            if (expression.equals("m_active === true ? 1 : 0")) {
+                m_createUpdateParamList += "xxxz.active, ";
+            }
+        }        
+    }
+    
+    private String getFormType(String dataType) {
+        if (dataType.equals("String"))
+            return "text";
+        else if (dataType.equals("Boolean"))
+            return "boolean";
+        else 
+            return "number";
+    }
+    
+    private void writeControllerObject() {
+        
+    }
+    
+    private String getControllerFile() {        
+        m_caseClassDataFields = chop(m_caseClassDataFields, 2);
+        
+        String className = m_javaClassName.substring(1);
+        String pluralClassName = cairoTreeListControllerGetIdentifierPluralName(className);
+        String lowerPluralClassName = pluralClassName.toLowerCase();
+        String capitalizedPluralClassName = pluralClassName.substring(0,1).toUpperCase() + pluralClassName.substring(1);
+        String lowerCaseClassName = cairoTreeListControllerGetIdentifierName(className);
+        String capitalizedClassName = lowerCaseClassName.substring(0,1).toUpperCase() + lowerCaseClassName.substring(1);
+        
+        m_formData = "      \"id\" -> optional(number),\n" + chop(m_formData, 2) + "\n";        
+        m_writeData = ("      \"id\" -> Json.toJson(xxxz.id),\n" + chop(m_writeData, 2)).replaceAll("xxxz", lowerCaseClassName) + "\n";
+        m_createUpdateParamList = chop(m_createUpdateParamList, 2).replaceAll("xxxz", lowerCaseClassName);
+
+        return m_controllerImports
+                + "\n\n"
+                + m_controllerClassData.replace("CASE-CLASS-FIELDS", m_caseClassDataFields).replaceAll("Xxxz", capitalizedClassName)
+                + "\n\n"
+                + m_controllerObject
+                    .replaceAll("Xxxzs", capitalizedPluralClassName)
+                    .replaceAll("xxxzs", lowerPluralClassName)
+                    .replaceAll("Xxxz", capitalizedClassName)
+                    .replaceAll("xxxz", lowerCaseClassName)
+                    .replaceAll("XXXZs", pluralClassName.toUpperCase())
+                    .replaceAll("XXXZ", lowerCaseClassName.toUpperCase())
+                    .replaceAll("\\[FORM-DATA\\]", m_formData)
+                    .replaceAll("\\[WRITES-DATA\\]", m_writeData)
+                    .replaceAll("\\[UPDATE-PARAM-LIST\\]", m_createUpdateParamList)
+                    .replaceAll("\\[CREATE-PARAM-LIST\\]", m_createUpdateParamList)
+                ;    
+    }
+    
+    private String chop(String text, int characters) {
+        if (text.length() <= characters)
+            return "";
+        else 
+            return text.substring(0, text.length() - characters);
+    }
+    
+    private String toCamel(String text) {
+        String rtn = "";
+        boolean lastWasUnderscore = false;
+        for (int i = 0; i < text.length(); i++) {
+            String c = text.substring(i, i+1);
+            if (c.equals("_")) {
+                lastWasUnderscore = true;
+            }
+            else {
+                if (lastWasUnderscore) {
+                    rtn += c.toUpperCase();
+                    lastWasUnderscore = false;
+                }                
+                else {
+                    rtn += c.toLowerCase();
+                }
+            }
+        }
+        return rtn;
+    }
+    
+    /*
+     
+     * MODEL
+     
+     */    
+    
+    private static final String m_modelImports = 
+            "import java.sql.{Connection, CallableStatement, ResultSet, Types, SQLException}\n"
+          + "import anorm.SqlParser._\n"
+          + "import anorm._\n"
+          + "import services.DateUtil\n"
+          + "import services.db.DB\n"
+          + "import models.cairo.system.database.{DBHelper, Register, Field, FieldType, SaveResult}\n"
+          + "import play.api.Play.current\n"
+          + "import models.domain.CompanyUser\n"
+          + "import java.util.Date\n"
+          + "import play.api.Logger\n"
+          + "import play.api.libs.json._\n"
+          + "import scala.util.control.NonFatal\n";
+    
+    private String m_modelCaseClass = 
+            "case class Xxxz(CASE-CLASS-FIELDS-FULL) {\n"
+          + "  def this(CASE-CLASS-FIELDS-NO-FK-NAMES) = {\n"
+          + "    this(CASE-CLASS-FIELDS-NO-FK-NAMES, EMPTY-STRING-FK-NAME-LIST)\n"
+          + "  }\n\n"  
+          + "  def this(CASE-CLASS-FIELDS-NO-ID) = {\n"
+          + "    this(DBHelper.NoId, CASE-CLASS-FIELDS-NO-ID, EMPTY-STRING-FK-NAME-LIST)\n"
+          + "  }\n\n"
+          + "}";
+    
+    private String m_modelObject = 
+                "object Xxxz {\n"
+
+            + "  lazy val emptyXxxz = Xxxz(\"\", \"\", \"\", false, DBHelper.NoId)\n"
+
+            + "  def apply(id: Int, name: String, code: String, descrip: String, active: Boolean, paId: Int) = {\n"
+            + "    new Xxxz(id, name, code, descrip, active, paId)\n"
+            + "  }\n"
+            + "  def apply(name: String, code: String, descrip: String, active: Boolean, paId: Int) = {\n"
+            + "    new Xxxz(name, code, descrip, active, paId)\n"
+            + "  }\n"
+
+            + "  private val xxxzParser: RowParser[Xxxz] = {\n"
+            + "    SqlParser.get[Int](C.PK_COLUMN) ~\n"
+            + "      SqlParser.get[String](C.PRO_NAME) ~\n"
+            + "      SqlParser.get[String](C.PRO_CODE) ~\n"
+            + "      SqlParser.get[String](C.PRO_DESCRIP) ~\n"
+            + "      SqlParser.get[Int](DBHelper.ACTIVE) ~\n"
+            + "      SqlParser.get[Date](DBHelper.CREATED_AT) ~\n"
+            + "      SqlParser.get[Date](DBHelper.UPDATED_AT) ~\n"
+            + "      SqlParser.get[Int](DBHelper.UPDATED_BY) ~\n"
+            + "      SqlParser.get[Int](C.PA_ID) ~\n"
+            + "      SqlParser.get[String](C.PA_NAME) map {\n"
+            + "      case id ~ name ~ code ~ descrip ~ active ~ createdAt ~ updatedAt ~ updatedBy ~ paId ~ paName =>\n"
+            + "        Xxxz(id, name, code, descrip, (if(active != 0) true else false), createdAt, updatedAt, updatedBy, paId, paName)\n"
+            + "    }\n"
+            + "  }\n"
+
+            + "  def create(user: CompanyUser, xxxz: Xxxz): Xxxz = {\n"
+            + "    save(user, xxxz, true)\n"
+            + "  }\n"
+
+            + "  def update(user: CompanyUser, xxxz: Xxxz): Xxxz = {\n"
+            + "    save(user, xxxz, false)\n"
+            + "  }\n"
+
+            + "  private def save(user: CompanyUser, xxxz: Xxxz, isNew: Boolean): Xxxz = {\n"
+            + "    def getFields = {\n"
+            + "      List(\n"
+            + "        Field(C.PRO_NAME, xxxz.name, FieldType.text),\n"
+            + "        Field(C.PRO_CODE, xxxz.code, FieldType.text),\n"
+            + "        Field(C.PRO_DESCRIP, xxxz.descrip, FieldType.text),\n"
+            + "        Field(DBHelper.ACTIVE, (if(xxxz.active) 1 else 0), FieldType.boolean),\n"
+            + "        Field(C.PA_ID, xxxz.paId, FieldType.id)\n"
+            + "      )\n"
+            + "    }\n"
+            + "    def throwException = {\n"
+            + "      throw new RuntimeException(s\"Error when saving ${C.XXXZ}\")\n"
+            + "    }\n"
+
+            + "    DBHelper.saveEx(\n"
+            + "      user,\n"
+            + "      Register(\n"
+            + "        C.XXXZ,\n"
+            + "        C.PK_COLUMN,\n"
+            + "        xxxz.id,\n"
+            + "        false,\n"
+            + "        true,\n"
+            + "        true,\n"
+            + "        getFields),\n"
+            + "      isNew,\n"
+            + "      C.PRO_CODE\n"
+            + "    ) match {\n"
+            + "      case SaveResult(true, id) => load(user, id).getOrElse(throwException)\n"
+            + "      case SaveResult(false, id) => throwException\n"
+            + "    }\n"
+            + "  }\n"
+
+            + "  def load(user: CompanyUser, id: Int): Option[Xxxz] = {\n"
+            + "    loadWhere(user, s\"${C.PK_COLUMN} = {id}\", 'id -> id)\n"
+            + "  }\n"
+
+            + "  def loadWhere(user: CompanyUser, where: String, args : scala.Tuple2[scala.Any, anorm.ParameterValue[_]]*) = {\n"
+            + "    DB.withConnection(user.database.database) { implicit connection =>\n"
+            + "      SQL(s\"SELECT t1.*, t2.${C.PA_NAME} FROM ${C.XXXZ} t1 INNER JOIN ${C.PAIS} t2 ON t1.${C.PA_ID} = t2.${C.PA_ID} WHERE $where\")\n"
+            + "        .on(args: _*)\n"
+            + "        .as(xxxzParser.singleOpt)\n"
+            + "    }\n"
+            + "  }\n"
+
+            + "  def delete(user: CompanyUser, id: Int) = {\n"
+            + "    DB.withConnection(user.database.database) { implicit connection =>\n"
+            + "      try {\n"
+            + "        SQL(s\"DELETE FROM ${C.XXXZ} WHERE ${C.PK_COLUMN} = {id}\")\n"
+            + "        .on('id -> id)\n"
+            + "        .executeUpdate\n"
+            + "      } catch {\n"
+            + "        case NonFatal(e) => {\n"
+            + "          Logger.error(s\"can't delete a ${C.XXXZ}. ${C.PK_COLUMN} id: $id. Error ${e.toString}\")\n"
+            + "          throw e\n"
+            + "        }\n"
+            + "      }\n"
+            + "    }\n"
+            + "  }\n"
+
+            + "  def get(user: CompanyUser, id: Int): Xxxz = {\n"
+            + "    load(user, id) match {\n"
+            + "      case Some(p) => p\n"
+            + "      case None => emptyXxxz\n"
+            + "    }\n"
+            + "  }\n"
+            + "}\n";            
+    
+    private void writeModelCaseClass() {
+    
+    }
+    
+    private void writeModelObject() {
+    
+    }
+    
+    private String getModelFile() {
+        return m_modelImports
+                + "\n\n"
+                + m_modelCaseClass
+                + "\n\n"
+                ;
+    }
+    
+    private String m_router = 
+        "GET     /api/v1/general/XXXZ/:id              controllers.logged.modules.general.XXXZs.get(id: Int)\n"
+      + "POST    /api/v1/general/XXXZ                  controllers.logged.modules.general.XXXZs.create\n"
+      + "PUT     /api/v1/general/XXXZ/:id              controllers.logged.modules.general.XXXZs.update(id: Int)\n"
+      + "DELETE  /api/v1/general/XXXZ/:id              controllers.logged.modules.general.XXXZs.delete(id: Int)\n";
+            
+    private String getRouter() {
+      return m_router
+              .replaceAll("XXXZs", cairoTreeListControllerGetIdentifierPluralName(m_javaClassName.substring(1)))
+              .replaceAll("XXXZ", cairoTreeListControllerGetIdentifierName(m_javaClassName.substring(1)));              
+    }
+    
+    
+    /*
+     
+     SCALA functions
+     * 
+     * CONTROLLER
+     * 
+     * imports:
+     * 
+        import controllers._
+        import play.api.mvc._
+        import play.api.data._
+        import play.api.data.Forms._
+        import actions._
+        import play.api.Logger
+        import play.api.libs.json._
+        import models.cairo.modules.general._
+        import models.cairo.system.security.CairoSecurity
+        import models.cairo.system.database.DBHelper
+     *
+     * case class XXXZData (only columns in the table. for FK do not include names)
+     * 
+     * object XXXZs extends Controller with ProvidesUser
+     * 
+     * XXXZForm:    only columns in the table
+     * 
+     * XXXZWrites:  all fields in XXXZ model (include FK's name) take this from load
+     * 
+     * get: very easy: just call model.load
+     * 
+     * create: very easy: just call model.create
+     * 
+     * delete: very easy: just call model.delete
+     * 
+     * MODEL
+     * 
+     * imports:
+     * 
+        import java.sql.{Connection, CallableStatement, ResultSet, Types, SQLException}
+        import anorm.SqlParser._
+        import anorm._
+        import services.DateUtil
+        import services.db.DB
+        import models.cairo.system.database.{DBHelper, Register, Field, FieldType, SaveResult}
+        import play.api.Play.current
+        import models.domain.CompanyUser
+        import java.util.Date
+        import play.api.Logger
+        import play.api.libs.json._
+        import scala.util.control.NonFatal
+     * 
+     * case class XXXZ
+     *  three constructors:
+     *      - default constructor: all fields including names of FK
+     *      - constructor which doesn't takes names of FK
+     *      - constructor which doesn't takes names of FK neither PK
+     * 
+     * object XXXZ
+     * 
+     *  an emptyXXXZ
+     * 
+     *  two apply methods to implement the two aditional constructors
+     * 
+     *  rowParser
+     * 
+     *  create and update (very easy: only assign parameter: Type like provincia: Provincia and return type like ): Provincia, then call save(user, parameter, true/false))
+     * 
+     *  save  - easy: just define a list with Field(colName, value, type. this has to be done when parsin save just use the case K_xxx to create the list
+     *                define an exception with a generic message
+     *                call DBHelper.saveEx
+     *                match the result
+     * 
+     *  load - easy: just set the idColumnName and call loadWhere
+     * 
+     *  loadWhere - very easy: just set the parser, the select should be written manually don't translate the select just copy the original select from load into
+     *                         this function to help the manual editing
+     * 
+     *  delete - very easy: just set the name of the table and PK if the delete uses an SP or is more complex it will be translated manually
+     * 
+     *  get - just call load and if None return emptyXXXZ
+     * 
+     * ROUTER
+     * 
+     * # general
+            GET     /api/v1/general/XXXZ/:id              controllers.logged.modules.general.XXXZs.get(id: Int)
+            POST    /api/v1/general/XXXZ                  controllers.logged.modules.general.XXXZs.create
+            PUT     /api/v1/general/XXXZ/:id              controllers.logged.modules.general.XXXZs.update(id: Int)
+            DELETE  /api/v1/general/XXXZ/:id              controllers.logged.modules.general.XXXZs.delete(id: Int)
+     * 
+     * 
+     
+     */
     
 }
 
