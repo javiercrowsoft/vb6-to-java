@@ -8214,6 +8214,19 @@ public class Translator {
         m_writeData = "";
         m_createUpdateParamList = "";
         
+        m_caseClassFields = "";
+        m_caseClassNoFKFields = "";
+        m_caseClassArgumentsFull = "";
+        m_caseClassArgumentsNoFK = "";
+        m_caseClassEmptyArguments = "";
+        
+        m_camelField = "";
+        
+        m_parserMap = "";
+        m_parserColumns = "";
+        m_parserColumns2 = "";
+        m_saveFieldList = "";
+        
         initInCairoFlags();
 
         if (name.contains(".")) {
@@ -9301,6 +9314,7 @@ public class Translator {
             writeControllerFormData(strLine);
             writeControllerWriteData(strLine);
             writeCreateUpdateParamList(strLine);
+            writeModelCaseClass(strLine);
             return translateLineInCairoLoadCollection(strLine, originalLine);
         }
         else if (m_inCairoDelete) {
@@ -10267,18 +10281,18 @@ public class Translator {
       }
       
       else if(strLine.contains("setSelectId")) {
-          updateLastFieldType("Int");
-          //m_caseClassDataFields += m_caseClassDataLastField.substring(0, m_caseClassDataLastField.indexOf("_")) + "_name"  + ": String, ";
+          m_caseClassDataFields = updateLastFieldType(m_caseClassDataFields, "Int");
       }
     }
     
-    private void updateLastFieldType(String dataType) {
-        for (int i = m_caseClassDataFields.length()-1; i > 0; i--) {
-            if (m_caseClassDataFields.charAt(i) == ':') {
-                m_caseClassDataFields = m_caseClassDataFields.substring(0, i + 2) + dataType + ", ";
-                return;
+    private String updateLastFieldType(String list, String dataType) {
+        for (int i = list.length()-1; i > 0; i--) {
+            if (list.charAt(i) == ':') {
+                list = list.substring(0, i + 2) + dataType + ", ";
+                break;
             }
         }
+        return list;
     }
     
     private String m_formDataLastField = "";
@@ -10380,11 +10394,7 @@ public class Translator {
         else 
             return "number";
     }
-    
-    private void writeControllerObject() {
-        
-    }
-    
+       
     private String getControllerFile() {        
         m_caseClassDataFields = chop(m_caseClassDataFields, 2);
         
@@ -10466,64 +10476,94 @@ public class Translator {
           + "import scala.util.control.NonFatal\n";
     
     private String m_modelCaseClass = 
-            "case class Xxxz(CASE-CLASS-FIELDS-FULL) {\n"
-          + "  def this(CASE-CLASS-FIELDS-NO-FK-NAMES) = {\n"
-          + "    this(CASE-CLASS-FIELDS-NO-FK-NAMES, EMPTY-STRING-FK-NAME-LIST)\n"
+            "case class Xxxz(id: Int, CASE-CLASS-FIELDS-FULL) {\n"
+          + "  def this(id: Int, CASE-CLASS-FIELDS-NO-FK-NAMES) = {\n"
+          + "    this(id, CASE-CLASS-ARGUMENTS-FULL)\n"
           + "  }\n\n"  
-          + "  def this(CASE-CLASS-FIELDS-NO-ID) = {\n"
-          + "    this(DBHelper.NoId, CASE-CLASS-FIELDS-NO-ID, EMPTY-STRING-FK-NAME-LIST)\n"
+          + "  def this(CASE-CLASS-FIELDS-NO-FK-NAMES) = {\n"
+          + "    this(DBHelper.NoId, CASE-CLASS-ARGUMENTS-NO-FK)\n"
           + "  }\n\n"
           + "}";
     
     private String m_modelObject = 
-                "object Xxxz {\n"
+                "object Xxxz {\n\n"
 
-            + "  lazy val emptyXxxz = Xxxz(\"\", \"\", \"\", false, DBHelper.NoId)\n"
+            + "  lazy val emptyXxxz = Xxxz(CASE-CLASS-EMPTY-ARGUMENTS)\n\n"
 
-            + "  def apply(id: Int, name: String, code: String, descrip: String, active: Boolean, paId: Int) = {\n"
-            + "    new Xxxz(id, name, code, descrip, active, paId)\n"
+            + "  def apply(id: Int, CASE-CLASS-FIELDS-NO-FK-NAMES) = {\n"
+            + "    new Xxxz(id, CASE-CLASS-ARGUMENTS-FULL)\n"
             + "  }\n"
-            + "  def apply(name: String, code: String, descrip: String, active: Boolean, paId: Int) = {\n"
-            + "    new Xxxz(name, code, descrip, active, paId)\n"
-            + "  }\n"
+            + "  def apply(CASE-CLASS-FIELDS-NO-FK-NAMES) = {\n"
+            + "    new Xxxz(CASE-CLASS-ARGUMENTS-NO-FK)\n"
+            + "  }\n\n"
 
             + "  private val xxxzParser: RowParser[Xxxz] = {\n"
-            + "    SqlParser.get[Int](C.PK_COLUMN) ~\n"
+            + "      SqlParser.get[Int](C.PK_COLUMN) ~\n"
+            + "[PARSER-MAP]"
+            + "      SqlParser.get[Date](DBHelper.CREATED_AT) ~\n"
+            + "      SqlParser.get[Date](DBHelper.UPDATED_AT) ~\n"
+            + "      SqlParser.get[Int](DBHelper.UPDATED_BY) map {\n"
+            
+            /* [PARSER-MAP]:
+             
             + "      SqlParser.get[String](C.PRO_NAME) ~\n"
             + "      SqlParser.get[String](C.PRO_CODE) ~\n"
             + "      SqlParser.get[String](C.PRO_DESCRIP) ~\n"
             + "      SqlParser.get[Int](DBHelper.ACTIVE) ~\n"
-            + "      SqlParser.get[Date](DBHelper.CREATED_AT) ~\n"
-            + "      SqlParser.get[Date](DBHelper.UPDATED_AT) ~\n"
-            + "      SqlParser.get[Int](DBHelper.UPDATED_BY) ~\n"
             + "      SqlParser.get[Int](C.PA_ID) ~\n"
-            + "      SqlParser.get[String](C.PA_NAME) map {\n"
-            + "      case id ~ name ~ code ~ descrip ~ active ~ createdAt ~ updatedAt ~ updatedBy ~ paId ~ paName =>\n"
-            + "        Xxxz(id, name, code, descrip, (if(active != 0) true else false), createdAt, updatedAt, updatedBy, paId, paName)\n"
+            + "      SqlParser.get[String](C.PA_NAME)
+             
+             */
+            
+            
+            + "      case [id ~ [PARSER~COLUMNS] ~ createdAt ~ updatedAt ~ updatedBy] =>\n"
+            
+            /* [PARSER~COLUMNS]:             
+             
+             name ~ code ~ descrip ~ active ~ paId ~ paName
+             
+             */            
+            
+            + "        Xxxz(id, [PARSER-COLUMNS], createdAt, updatedAt, updatedBy)\n"
+            
+            /* [PARSER-COLUMNS]:
+            
+             name, code, descrip, (if(active != 0) true else false), paId, paName
+            
+            */
+            
             + "    }\n"
-            + "  }\n"
+            + "  }\n\n"
 
             + "  def create(user: CompanyUser, xxxz: Xxxz): Xxxz = {\n"
             + "    save(user, xxxz, true)\n"
-            + "  }\n"
+            + "  }\n\n"
 
             + "  def update(user: CompanyUser, xxxz: Xxxz): Xxxz = {\n"
             + "    save(user, xxxz, false)\n"
-            + "  }\n"
+            + "  }\n\n"
 
             + "  private def save(user: CompanyUser, xxxz: Xxxz, isNew: Boolean): Xxxz = {\n"
             + "    def getFields = {\n"
             + "      List(\n"
+            + "[SAVE-FIELD-LIST]\n"
+            + "      )\n"
+            + "    }\n"
+            
+            /* [SAVE-FIELD-LIST]
+             
             + "        Field(C.PRO_NAME, xxxz.name, FieldType.text),\n"
             + "        Field(C.PRO_CODE, xxxz.code, FieldType.text),\n"
             + "        Field(C.PRO_DESCRIP, xxxz.descrip, FieldType.text),\n"
             + "        Field(DBHelper.ACTIVE, (if(xxxz.active) 1 else 0), FieldType.boolean),\n"
-            + "        Field(C.PA_ID, xxxz.paId, FieldType.id)\n"
-            + "      )\n"
-            + "    }\n"
+            + "        Field(C.PA_ID, xxxz.paId, FieldType.id)\n"             
+             
+             */
+            
+            
             + "    def throwException = {\n"
             + "      throw new RuntimeException(s\"Error when saving ${C.XXXZ}\")\n"
-            + "    }\n"
+            + "    }\n\n"
 
             + "    DBHelper.saveEx(\n"
             + "      user,\n"
@@ -10536,24 +10576,24 @@ public class Translator {
             + "        true,\n"
             + "        getFields),\n"
             + "      isNew,\n"
-            + "      C.PRO_CODE\n"
+            + "      C.CODE_COLUMN\n"
             + "    ) match {\n"
             + "      case SaveResult(true, id) => load(user, id).getOrElse(throwException)\n"
             + "      case SaveResult(false, id) => throwException\n"
             + "    }\n"
-            + "  }\n"
+            + "  }\n\n"
 
             + "  def load(user: CompanyUser, id: Int): Option[Xxxz] = {\n"
             + "    loadWhere(user, s\"${C.PK_COLUMN} = {id}\", 'id -> id)\n"
-            + "  }\n"
+            + "  }\n\n"
 
             + "  def loadWhere(user: CompanyUser, where: String, args : scala.Tuple2[scala.Any, anorm.ParameterValue[_]]*) = {\n"
             + "    DB.withConnection(user.database.database) { implicit connection =>\n"
-            + "      SQL(s\"SELECT t1.*, t2.${C.PA_NAME} FROM ${C.XXXZ} t1 INNER JOIN ${C.PAIS} t2 ON t1.${C.PA_ID} = t2.${C.PA_ID} WHERE $where\")\n"
+            + "      SQL(s\"SELECT t1.*, t2.${C.FK_NAME} FROM ${C.XXXZ} t1 INNER JOIN ${C.???} t2 ON t1.${C.FK_ID} = t2.${C.FK_ID} WHERE $where\")\n"
             + "        .on(args: _*)\n"
             + "        .as(xxxzParser.singleOpt)\n"
             + "    }\n"
-            + "  }\n"
+            + "  }\n\n"
 
             + "  def delete(user: CompanyUser, id: Int) = {\n"
             + "    DB.withConnection(user.database.database) { implicit connection =>\n"
@@ -10568,7 +10608,7 @@ public class Translator {
             + "        }\n"
             + "      }\n"
             + "    }\n"
-            + "  }\n"
+            + "  }\n\n"
 
             + "  def get(user: CompanyUser, id: Int): Xxxz = {\n"
             + "    load(user, id) match {\n"
@@ -10576,22 +10616,176 @@ public class Translator {
             + "      case None => emptyXxxz\n"
             + "    }\n"
             + "  }\n"
-            + "}\n";            
+            + "}\n";           
     
-    private void writeModelCaseClass() {
+    private String m_caseClassFields = "";
+    private String m_caseClassNoFKFields = "";
+
+    private String m_caseClassArgumentsFull = "";    
+    private String m_caseClassArgumentsNoFK = "";
+    private String m_caseClassEmptyArguments = "";
+    private String m_parserMap = "";
+    private String m_parserColumns = "";
+    private String m_parserColumns2 = "";
+    private String m_saveFieldList = "";
+    private String m_parserMapLastField = "";
+    private String m_camelField = "";
     
+    private String m_caseClassLastField = "";
+    
+    private void writeModelCaseClass(String strLine) {
+      if (strLine.contains("var elem = properties.add(null, Cairo.General.Constants.")) {
+          m_caseClassLastField = strLine.trim().replace("var elem = properties.add(null, Cairo.General.Constants.", "");
+          m_caseClassLastField = m_caseClassLastField.substring(0, m_caseClassLastField.indexOf(")"));
+          
+          m_parserMapLastField = m_caseClassLastField;
+          
+          if (m_caseClassPrefix.isEmpty()) {
+              m_caseClassPrefix = m_caseClassLastField.substring(0, m_caseClassLastField.indexOf("_") + 1);
+          }
+          
+          if (m_caseClassLastField.startsWith(m_caseClassPrefix)) {
+            m_caseClassLastField = m_caseClassLastField.substring(m_caseClassPrefix.length());
+          }
+          
+          m_camelField = toCamel(m_caseClassLastField);
+          
+          m_caseClassFields += m_camelField + ": ";
+          m_caseClassNoFKFields += m_camelField + ": ";
+          
+          m_caseClassArgumentsFull += m_camelField + ", ";
+          m_caseClassArgumentsNoFK += m_camelField + ", ";
+          
+          m_parserColumns += m_camelField + " ~ ";
+          m_parserColumns2 += m_camelField + ", ";
+                  
+      }
+      else if(strLine.contains("setValue")) {
+          String expression = strLine.substring(strLine.indexOf("(") + 1, strLine.indexOf(")"));
+          if (expression.equals("m_active === true ? 1 : 0")) {
+              m_caseClassFields += "active: Boolean, ";
+              m_caseClassNoFKFields += "active: Boolean, ";
+              m_caseClassEmptyArguments += "false, ";
+              m_parserMap += "      SqlParser.get[Int](DBHelper.ACTIVE) ~\n";
+              m_parserColumns += "active ~ ";
+              m_parserColumns2 += "(if(active != 0) true else false), ";
+              m_saveFieldList += "        Field(DBHelper.ACTIVE, (if(xxxz.active) 1 else 0), FieldType.boolean),\n";
+              
+          }
+          else {
+            IdentifierInfo info = getIdentifierInfo(expression);
+            m_caseClassFields += info.variable.dataType + ", ";
+            m_caseClassNoFKFields += info.variable.dataType + ", ";
+            m_caseClassEmptyArguments += getZeroValueForDataType(info.variable.dataType) + ", ";
+            m_parserMap += "      SqlParser.get[" + info.variable.dataType + "](C." + m_parserMapLastField + ") ~\n";            
+            m_saveFieldList += "        Field(C." + m_parserMapLastField + ", xxxz." + m_camelField + ", FieldType." + getFormType(info.variable.dataType) + "),\n";            
+          }
+      }
+      
+      else if(strLine.contains("setSelectId")) {
+          m_caseClassFields = updateLastFieldType(m_caseClassFields, "Int");
+          m_caseClassNoFKFields = updateLastFieldType(m_caseClassNoFKFields, "Int");
+          m_caseClassEmptyArguments = chop(m_caseClassEmptyArguments, 4) + "DBHelper.NoId, ";
+          m_caseClassFields += m_caseClassLastField.substring(0, m_caseClassLastField.indexOf("_")) + "Name"  + ": String, ";
+          m_caseClassArgumentsFull += "\"\", ";
+          m_parserMap = updateLastParserType(m_parserMap, "Int");
+          m_saveFieldList = updateLastSaveListType(m_saveFieldList, "id");
+      }
     }
     
-    private void writeModelObject() {
-    
+    private String updateLastParserType(String list, String dataType) {
+        for (int i = list.length()-1; i > 0; i--) {
+            if (list.charAt(i) == '[') {
+                list = list.substring(0, i + 1) + dataType + "](C." + m_parserMapLastField + ") ~\n";
+                break;
+            }
+        }
+        return list;
     }
+
+    private String updateLastSaveListType(String list, String dataType) {
+        for (int i = list.length()-3; i > 0; i--) {
+            if (list.charAt(i) == ',') {
+                list = list.substring(0, i + 1) + " FieldType." + dataType + "),\n";
+                break;
+            }
+        }
+        return list;
+    }    
     
     private String getModelFile() {
+               
+        String className = m_javaClassName.substring(1);
+        String pluralClassName = cairoTreeListControllerGetIdentifierPluralName(className);
+        String lowerPluralClassName = pluralClassName.toLowerCase();
+        String capitalizedPluralClassName = pluralClassName.substring(0,1).toUpperCase() + pluralClassName.substring(1);
+        String lowerCaseClassName = cairoTreeListControllerGetIdentifierName(className);
+        String capitalizedClassName = lowerCaseClassName.substring(0,1).toUpperCase() + lowerCaseClassName.substring(1);
+        
+        String pkColumnName = m_caseClassPrefix + "ID";
+        String codeColumnName = m_caseClassPrefix + "CODE";
+        
+        m_caseClassFields = chop(m_caseClassFields, 2);
+        m_caseClassNoFKFields = chop(m_caseClassNoFKFields, 2);
+        m_caseClassArgumentsFull = chop(m_caseClassArgumentsFull, 2);
+        m_caseClassArgumentsNoFK = chop(m_caseClassArgumentsNoFK, 2);        
+        
         return m_modelImports
                 + "\n\n"
                 + m_modelCaseClass
+                        .replace("CASE-CLASS-FIELDS-FULL", m_caseClassFields)
+                        .replace("CASE-CLASS-FIELDS-NO-FK-NAMES", m_caseClassNoFKFields)
+                        .replace("CASE-CLASS-ARGUMENTS-FULL", m_caseClassArgumentsFull)
+                        .replace("CASE-CLASS-ARGUMENTS-NO-FK", m_caseClassArgumentsNoFK)
+                        .replaceAll("Xxxz", capitalizedClassName)
                 + "\n\n"
+                + m_modelObject
+                    .replace("CASE-CLASS-FIELDS-FULL", m_caseClassFields)
+                    .replace("CASE-CLASS-FIELDS-NO-FK-NAMES", m_caseClassNoFKFields)
+                    .replace("CASE-CLASS-ARGUMENTS-FULL", m_caseClassArgumentsFull)
+                    .replace("CASE-CLASS-ARGUMENTS-NO-FK", m_caseClassArgumentsNoFK)
+                    .replace("CASE-CLASS-EMPTY-ARGUMENTS", chop(m_caseClassEmptyArguments, 2))
+                    .replaceAll("PK_COLUMN", pkColumnName)
+                    .replaceAll("CODE_COLUMN", codeColumnName)
+                    .replaceAll("\\[PARSER-MAP\\]", m_parserMap)
+                    .replaceAll("\\[PARSER~COLUMNS\\]", chop(m_parserColumns, 3))
+                    .replaceAll("\\[PARSER-COLUMNS\\]", chop(m_parserColumns2, 2))
+                    .replaceAll("\\[SAVE-FIELD-LIST\\]", chop(m_saveFieldList, 2))
+                    .replaceAll("Xxxzs", capitalizedPluralClassName)
+                    .replaceAll("xxxzs", lowerPluralClassName)
+                    .replaceAll("Xxxz", capitalizedClassName)
+                    .replaceAll("xxxz", lowerCaseClassName)
+                    .replaceAll("XXXZs", pluralClassName.toUpperCase())
+                    .replaceAll("XXXZ", lowerCaseClassName.toUpperCase())
                 ;
+        
+        ////////////////////////////////////////////////////////////////////////
+        
+
+        
+/*        
+        
+        m_formData = "      \"id\" -> optional(number),\n" + chop(m_formData, 2) + "\n";        
+        m_writeData = ("      \"id\" -> Json.toJson(xxxz.id),\n" + chop(m_writeData, 2)).replaceAll("xxxz", lowerCaseClassName) + "\n";
+        m_createUpdateParamList = chop(m_createUpdateParamList, 2).replaceAll("xxxz", lowerCaseClassName);
+
+        return m_controllerImports
+                + "\n\n"
+                + m_controllerClassData.replace("CASE-CLASS-FIELDS", m_caseClassDataFields).replaceAll("Xxxz", capitalizedClassName)
+                + "\n\n"
+                + m_controllerObject
+                    .replaceAll("Xxxzs", capitalizedPluralClassName)
+                    .replaceAll("xxxzs", lowerPluralClassName)
+                    .replaceAll("Xxxz", capitalizedClassName)
+                    .replaceAll("xxxz", lowerCaseClassName)
+                    .replaceAll("XXXZs", pluralClassName.toUpperCase())
+                    .replaceAll("XXXZ", lowerCaseClassName.toUpperCase())
+                    .replaceAll("\\[FORM-DATA\\]", m_formData)
+                    .replaceAll("\\[WRITES-DATA\\]", m_writeData)
+                    .replaceAll("\\[UPDATE-PARAM-LIST\\]", m_createUpdateParamList)
+                    .replaceAll("\\[CREATE-PARAM-LIST\\]", m_createUpdateParamList)
+                ; 
+                */ 
     }
     
     private String m_router = 
