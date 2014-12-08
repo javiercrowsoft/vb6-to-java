@@ -195,6 +195,7 @@ public class Translator {
     
     private boolean m_inCairoValidate = false;
     private boolean m_inCairoSave = false;
+    private boolean m_inCairoSaveItems = false;
     private boolean m_inCairoShowDoc = false;
     private boolean m_inCairoTerminate = false;
     private boolean m_inCairoDestroy = false;
@@ -3647,7 +3648,12 @@ public class Translator {
                 if (inWith) {
                     if (m_translateToCairo) {
                         String varName = var.getJavaName();
-                        varName = varName.equals("w_add") ? "elem" : varName;
+                        if (var.dataType.equals("cIABMTabItem")) {
+                            varName = varName.equals("w_add") ? "tab" : varName;
+                        }
+                        else {
+                            varName = varName.equals("w_add") ? "elem" : varName;
+                        }
                         varName = varName.equals("w_properties") ? "properties" : varName;                        
                         var.setJavaName(varName);
                         strLine = prefix
@@ -3672,7 +3678,12 @@ public class Translator {
                 else {
                     if (m_translateToCairo) {
                         String varName = var.getJavaName();
-                        varName = varName.equals("w_add") ? "elem" : varName;
+                        if (var.dataType.equals("cIABMTabItem")) {
+                            varName = varName.equals("w_add") ? "tab" : varName;
+                        }
+                        else {
+                            varName = varName.equals("w_add") ? "elem" : varName;
+                        }
                         varName = varName.equals("w_item") ? "property" : varName;
                         varName = varName.equals("w_properties") ? "properties" : varName;
                         var.setJavaName(varName);
@@ -3708,7 +3719,12 @@ public class Translator {
                     if (inWith) {
                         if (m_translateToCairo) {
                             String varName = var.getJavaName();
-                            varName = varName.equals("w_add") ? "elem" : varName;
+                            if (var.dataType.equals("cIABMTabItem")) {
+                                varName = varName.equals("w_add") ? "tab" : varName;
+                            }
+                            else {
+                                varName = varName.equals("w_add") ? "elem" : varName;
+                            }
                             varName = varName.equals("w_item") ? "property" : varName;
                             varName = varName.equals("w_properties") ? "properties" : varName;
                             var.setJavaName(varName);
@@ -3736,7 +3752,12 @@ public class Translator {
                     else {
                         if (m_translateToCairo) {
                             String varName = var.getJavaName();
-                            varName = varName.equals("w_add") ? "elem" : varName;
+                            if (var.dataType.equals("cIABMTabItem")) {
+                                varName = varName.equals("w_add") ? "tab" : varName;
+                            }
+                            else {
+                                varName = varName.equals("w_add") ? "elem" : varName;
+                            }                            
                             varName = varName.equals("w_item") ? "property" : varName;
                             varName = varName.equals("w_properties") ? "properties" : varName;
                             var.setJavaName(varName);                            
@@ -8217,6 +8238,9 @@ public class Translator {
         
         // scala
         //
+        m_discardProperty = false;
+        m_discardedProperties = "";
+        
         m_caseClassDataFields = "";
         m_caseClassPrefix = "";
         m_formData = "";
@@ -8604,7 +8628,8 @@ public class Translator {
                 + "\n\n// Model\n\n"
                 + getModelFile()
                 + "\n\n// Router\n\n"
-                + getRouter();
+                + getRouter()
+                + "\n\n\n\n/*" + m_discardedProperties + "*/\n";
     }
 
     public void addEventListenerInterface() {
@@ -9239,6 +9264,7 @@ public class Translator {
     private void initInCairoFlags() {
         m_inCairoValidate = false;
         m_inCairoSave = false;
+        m_inCairoSaveItems = false;
         m_inCairoShowDoc = false;
         m_inCairoTerminate = false;
         m_inCairoDestroy = false;
@@ -9253,6 +9279,8 @@ public class Translator {
         m_inCairoCopy = false;
         m_inPropertyChange = false;
         m_propertyChangeIsNotEmpty = false;
+        m_isComplexSave = false;
+        m_complexSaveCall = "";
     }
     
     private void updateInCairoFlags(String name) {
@@ -9298,6 +9326,9 @@ public class Translator {
         else if (name.equals("cIABMClient_Copy")) {
             m_inCairoCopy = true;
         }
+        else if (name.contains("pSaveItems")) {
+            m_inCairoSaveItems = true;
+        }        
     }
     
     private String translateLineInCairoFunction(String strLine, String originalLine) {
@@ -9338,6 +9369,9 @@ public class Translator {
         }
         else if (m_inCairoSave) {
             return translateLineInCairoSave(strLine);
+        }
+        else if (m_inCairoSaveItems) {
+            return translateLineInCairoSaveItems(strLine);
         }
         else if (m_inCairoDiscardChanges) {
             return translateLineInCairoDiscarChanges(strLine);
@@ -9391,21 +9425,21 @@ public class Translator {
     }
     
     private String translateLineInCairoEdit(String strLine) {
-        String trimedLine = strLine.trim();
-        if (G.beginLike(trimedLine, "if (!load(id)) { return _rtn; }")) {
-            trimedLine = getTabs() + "p = load(id).then(\n" + getTabs() + " function(success) {\n" + getTabs() + "    if(success) {\n";
+        String trimmedLine = strLine.trim();
+        if (G.beginLike(trimmedLine, "if (!load(id)) { return _rtn; }")) {
+            trimmedLine = getTabs() + "p = load(id).then(\n" + getTabs() + " function(success) {\n" + getTabs() + "    if(success) {\n";
             m_tabCount += 3;
-            return trimedLine;
+            return trimmedLine;
         }
-        else if (G.beginLike(strLine, "                return _rtn;")) {
+        else if (G.beginLike(strLine.trim(), "return _rtn;")) {
             m_tabCount -= 1;
-            trimedLine = getTabs() + "}\n" 
+            trimmedLine = getTabs() + "}\n" 
                         + getTabs() + "return success;\n";
             m_tabCount -= 2;
-            trimedLine += getTabs() + "});\n";
-            return trimedLine;
+            trimmedLine += getTabs() + "});\n";
+            return trimmedLine;
         }
-        else if (G.beginLike(trimedLine, "return _rtn;")) {
+        else if (G.beginLike(trimmedLine, "return _rtn;")) {
             return "";
         }        
         else {
@@ -9448,31 +9482,54 @@ public class Translator {
                 .replace("m_isNew = true;", "m_isNew = true;\n\n        m_listController.updateEditorKey(self, Cairo.Constants.NO_ID);");
     }
     
+    private boolean m_isComplexSave = false;
+    private String m_complexSaveCall = "";
+    
     private String translateLineInCairoSave(String strLine) {
-        String trimedLine = strLine.trim();
-        if (G.beginLike(trimedLine, "var register = null;") ||
-                G.beginLike(trimedLine, "var fields = null;") ||
-                G.beginLike(trimedLine, "var property = null;") ||
-                G.beginLike(trimedLine, "//Error al grabar ")) {
+        
+        if (strLine.contains("commitTrans")) {
+            int debug = 0;
+        }        
+        
+        String trimmedLine = strLine.trim();
+        if (G.beginLike(trimmedLine, "var register = null;") ||
+                G.beginLike(trimmedLine, "var fields = null;") ||
+                G.beginLike(trimmedLine, "var property = null;") ||
+                G.beginLike(trimmedLine, "//Error al grabar ")) {
             return "";
         }
-        else if (G.beginLike(trimedLine, "if (!Cairo.Database.saveEx(register, , Cairo.General.Constants.")) {
-            trimedLine = trimedLine.substring(62).replace(") { return false; }", "");
-            trimedLine = trimedLine.replace("C_ABMClientSave", "\n            Cairo.Constants.CLIENT_SAVE_FUNCTION,\n            ");
-            trimedLine = trimedLine.replace(", C_MODULE, ", "C_MODULE,\n            ");
-            trimedLine = getTabs() + "return Cairo.Database.saveEx(\n            register,\n            false,\n            Cairo.General.Constants" + trimedLine + ".then(\n\n"
-                    + getTabs() + "  function(result) {\n"
-                    + getTabs() + "    if(result.success) {";
-            m_tabCount += 4;
-            return trimedLine;
+        else if (G.beginLike(trimmedLine, "if (!Cairo.Database.saveEx(register, , Cairo.General.Constants.")) {
+            if (m_isComplexSave) {
+                trimmedLine = trimmedLine.substring(62).replace(") { return false; }", "");
+                trimmedLine = trimmedLine.replace(") { return _rtn; }", "");
+                trimmedLine = trimmedLine.replace("C_ABMClientSave", "\n            Cairo.Constants.CLIENT_SAVE_FUNCTION,\n            ");
+                trimmedLine = trimmedLine.replace(", C_MODULE, ", "C_MODULE,\n            ");
+                m_complexSaveCall = getTabs() + "return Cairo.Database.saveTransaction(\n            register,\n            false,\n            Cairo.General.Constants" + trimmedLine + ".then(\n\n"
+                        + getTabs() + "  function(result) {\n"
+                        + getTabs() + "    if(result.success) {";
+                return getTabs() + "// save items";                
+            }
+            else {
+                trimmedLine = trimmedLine.substring(62).replace(") { return false; }", "");
+                trimmedLine = trimmedLine.replace(") { return _rtn; }", "");
+                trimmedLine = trimmedLine.replace("C_ABMClientSave", "\n            Cairo.Constants.CLIENT_SAVE_FUNCTION,\n            ");
+                trimmedLine = trimmedLine.replace(", C_MODULE, ", "C_MODULE,\n            ");
+                trimmedLine = getTabs() + "return Cairo.Database.saveEx(\n            register,\n            false,\n            Cairo.General.Constants" + trimmedLine + ".then(\n\n"
+                        + getTabs() + "  function(result) {\n"
+                        + getTabs() + "    if(result.success) {";
+                m_tabCount += 4;
+                return trimmedLine;
+            }
         }
-        else if (G.beginLike(trimedLine, "return load(register.getID());")) {
+        else if (G.beginLike(trimmedLine, "return load(register.getID());") 
+                || G.beginLike(trimmedLine, "_rtn = load(register.getID());")) {
+
             m_tabCount -= 2;
-            trimedLine = getTabs() + "}\n" 
+            trimmedLine = getTabs() + "}\n" 
                         + getTabs() + "else {\n" 
                         + getTabs() + "  return false;\n" 
                         + getTabs() + "}\n";
-            trimedLine = "              return load(result.data.getId()).then(\n" 
+            trimmedLine = "              return load(result.data.getId()).then(\n" 
                     + "                function (success) {\n"
                     + "                  if(success) {\n"
                     + "                    updateList();\n"
@@ -9482,10 +9539,21 @@ public class Translator {
                     + "                  return success;\n"
                     + "                }\n"
                     + "              );\n"                    
-                    + trimedLine;
+                    + trimmedLine;
             m_tabCount -= 2;
-            trimedLine += getTabs() + "});\n";
-            return trimedLine;
+            trimmedLine += getTabs() + "});\n";
+            return trimmedLine;
+        }
+        else if (G.beginLike(trimmedLine, "if (!register.beginTrans(Cairo.Database)) { return _rtn; }")) {
+            m_isComplexSave = true;
+            return getTabs() + "register.prepareTransaction();";
+        }
+        else if (G.beginLike(trimmedLine, "if (!register.commitTrans()) {")) {
+            m_tabCount += 4;
+            return m_complexSaveCall;
+        }
+        else if (trimmedLine.contains("pSaveItems")) {
+            return strLine.replace("()", "(register)").replace("// **TODO:** goto found: GoTo SaveError; }", " return false; }");
         }
         else {
             return strLine
@@ -9496,7 +9564,61 @@ public class Translator {
                     .replaceAll("//Error al grabar ", "\n" + getTabs() + "// Error saving ")
                     .replace("if (m_copy) {", "var apiPath = Cairo.Database.getAPIVersion();\n        register.setPath(apiPath + \"general/" 
                                 + m_javaClassName.substring(1).toLowerCase() 
-                                + "\");\n\n        if(m_copy) {");
+                                + "\");\n\n        if(m_copy) {")
+                    .replace("if(!m_genericEdit.Save(m_dialog, register)) { return _rtn; }", "if(!m_genericEdit.save(m_dialog, register)) { return false; }")
+                    .replace("// **TODO:** goto found: GoTo SaveError; }", " return false; }");
+        }
+    }
+    
+    private String m_itemsDeletedList = "";
+    
+    private String translateLineInCairoSaveItems(String strLine) {
+        
+        if (strLine.contains("commitTrans")) {
+            int debug = 0;
+        }        
+        
+        String trimmedLine = strLine.trim();
+        if (G.beginLike(trimmedLine, "var fields = null;") ||
+                G.beginLike(trimmedLine, "var property = null;") ||
+                G.beginLike(trimmedLine, "sqlstmt = \"delete ") ||
+                G.beginLike(trimmedLine, "var sqlstmt = null;") ||
+                G.beginLike(trimmedLine, "//Error al grabar ")) {
+            return "";
+        }
+        else if (G.beginLike(trimmedLine, "var pSaveItems")) {
+            return strLine.replace("()", "(mainTransaction)");
+        }
+        else if (G.beginLike(trimmedLine, "if (!Cairo.Database.save(register, ,")) {
+            return getTabs() + "transaction.addRegister(register);\n";
+        }
+        else if (G.beginLike(trimmedLine, "var register = null;")) {
+            return getTabs() + "var transaction = new Cairo.Database.Transaction();\n";
+        }
+        else if (G.beginLike(trimmedLine, "return true;")) {            
+            return getTabs() + "mainTransaction.addTransaction(transaction);\n\n" + getTabs() + "return true;\n";
+        }
+        else if (trimmedLine.contains("cUtil.removeLastColon(m_itemsDeleted")) {
+            m_itemsDeletedList = trimmedLine.substring(0, trimmedLine.indexOf("="));
+            return "";
+        }
+        else if (trimmedLine.contains("if (!Cairo.Database.execute(sqlstmt, ") && !m_itemsDeletedList.isEmpty()) {
+            trimmedLine = getTabs() + "transaction.setDeletedList(" + m_itemsDeletedList + ")\n";
+            m_itemsDeletedList = "";
+            return trimmedLine;
+        }
+        else {
+            return strLine
+                    .replaceAll("register = new cRegister\\(\\);", "var register = new Cairo.Database.Register();") 
+                    .replaceAll("fields = register.getFields\\(\\);", "var fields = register.getFields();")
+                    .replaceAll("property = m_dialog.getProperties\\(\\).item\\(_i\\);", "var property = m_dialog.getProperties().item(_i);")
+                    .replaceAll("fields.add2\\(", "fields.add(")
+                    .replaceAll("//Error al grabar ", "\n" + getTabs() + "// Error saving ")
+                    .replace("if (m_copy) {", "var apiPath = Cairo.Database.getAPIVersion();\n        register.setPath(apiPath + \"general/" 
+                                + m_javaClassName.substring(1).toLowerCase() 
+                                + "\");\n\n        if(m_copy) {")
+                    .replace("if(!m_genericEdit.Save(m_dialog, register)) { return _rtn; }", "if(!m_genericEdit.save(m_dialog, register)) { return false; }")
+                    .replace("// **TODO:** goto found: GoTo SaveError; }", " return false; }");
         }
     }
     
@@ -9511,7 +9633,7 @@ public class Translator {
                     + "\n        return m_dialog.showValues(properties);\n"
                     + "      };\n";
             
-            return strLine + m_refreshCollection;
+            return strLine + m_refreshCollection.replaceAll("Integer.parseInt\\(", "Cairo.Util.boolToInt(");
         }
         else {
             if (G.beginLike(strLine.trim(), "var elem = properties.add(null")) {
@@ -9521,18 +9643,26 @@ public class Translator {
             } else if (G.beginLike(strLine.trim(), "elem.setSelectId(")) {
                 m_refreshCollection += strLine;
             }
-            return strLine;
+            if (G.beginLike(strLine.trim(), "Const(")) {
+                return strLine
+                        .replace("Const(", "var ")
+                        .replace("==", "=")
+                        .replace(")", "")                        
+                        ;
+            }
+            else
+                return strLine.replace("Integer.parseInt(", "Cairo.Util.boolToInt(");
         }
     }
     
     private String translateLineInCairoLoad(String strLine) {
-        String trimedLine = strLine.trim();
-        if (G.beginLike(trimedLine, "sqlstmt") ||
-                G.beginLike(trimedLine, "var sqlstmt = null;") ||
-                G.beginLike(trimedLine, "var rs = null;")) {
+        String trimmedLine = strLine.trim();
+        if (G.beginLike(trimmedLine, "sqlstmt") ||
+                G.beginLike(trimmedLine, "var sqlstmt = null;") ||
+                G.beginLike(trimmedLine, "var rs = null;")) {
             return "";
         }
-        else if (G.beginLike(trimedLine, "if (!Cairo.Database.openRs(sqlstmt, rs,")) {
+        else if (G.beginLike(trimmedLine, "if (!Cairo.Database.openRs(sqlstmt, rs,")) {
             String rtn = getTabs()
                     + "var apiPath = Cairo.Database.getAPIVersion();\n"
                     + getTabs()
@@ -9541,11 +9671,11 @@ public class Translator {
             m_tabCount += 2;
             return rtn;
         }
-        else if (G.beginLike(trimedLine, "return true;")) {
+        else if (G.beginLike(trimmedLine, "return true;")) {
             m_tabCount -= 2;
             return getTabs() + "  return true;\n" + getTabs() + "});\n";
         }
-        else if (G.beginLike(trimedLine, "if (rs.isEOF()) {")) {
+        else if (G.beginLike(trimmedLine, "if (rs.isEOF()) {")) {
             m_tabCount--;
             String rtn = getTabs() + "if(response.success !== true) { return false; }\n\n" + getTabs() + "if(response.data.id === Cairo.Constants.NO_ID) {\n";
             m_tabCount++;
@@ -9562,9 +9692,9 @@ public class Translator {
             "// **TODO:** label found: ExitProc:;",
             "var doc = null;"
         };
-        String trimedLine = strLine.trim();
+        String trimmedLine = strLine.trim();
         for (int i = 0; i < lines.length; i++) {
-            if (trimedLine.equals(lines[i]) ) {
+            if (trimmedLine.equals(lines[i]) ) {
                 return "";
             }        
         }
@@ -9577,9 +9707,9 @@ public class Translator {
         String[] lines = {
             "// **TODO:** on error resume next found !!!"
         };
-        String trimedLine = strLine.trim();
+        String trimmedLine = strLine.trim();
         for (int i = 0; i < lines.length; i++) {
-            if (trimedLine.equals(lines[i]) ) {
+            if (trimmedLine.equals(lines[i]) ) {
                 return "";
             }        
         }
@@ -9639,7 +9769,7 @@ public class Translator {
             return strLine;
         }
         else
-            return strLine;
+            return strLine.replace("C_ValidateRow", "Cairo.Constants.VALIDATE_ROW_FUNCTION");
     }
 
     String[] lines = {
@@ -9647,14 +9777,14 @@ public class Translator {
         "abmGen = m_dialog;"
     };    
     private String translateLineInCairoMessageEx(String strLine) {
-        String trimedLine = strLine.trim();
+        String trimmedLine = strLine.trim();
         for (int i = 0; i < lines.length; i++) {
-            if (trimedLine.equals(lines[i]) ) {
+            if (trimmedLine.equals(lines[i]) ) {
                 return "";
             }        
         }
         
-        if (G.beginLike(trimedLine, "return _rtn;"))
+        if (G.beginLike(trimmedLine, "return _rtn;"))
             return strLine.replaceAll("return _rtn;", "return Cairo.Promises.resolvedPromise(_rtn);");        
         else
             return strLine.replaceAll("abmGen", "m_dialog");
@@ -9762,7 +9892,7 @@ public class Translator {
         strLine = strLine.replaceAll("Dialogs.PropertySubType.Money", "Dialogs.PropertySubType.money");
         strLine = strLine.replaceAll("Dialogs.PropertySubType.integer", "Dialogs.PropertySubType.integer");
         strLine = strLine.replaceAll("Dialogs.PropertySubType.Double", "Dialogs.PropertySubType.double");
-        strLine = strLine.replaceAll("Dialogs.PropertySubType.Percentage", "Dialogs.PropertySubType.percentage");
+        strLine = strLine.replaceAll("Dialogs.PropertySubType.Percent", "Dialogs.PropertySubType.percentage");
         strLine = strLine.replaceAll("Dialogs.PropertySubType.Mask", "Dialogs.PropertySubType.mask");
         strLine = strLine.replaceAll("Dialogs.PropertySubType.CUIT", "Dialogs.PropertySubType.taxId");
         strLine = strLine.replaceAll("Dialogs.PropertySubType.TextButton", "Dialogs.PropertySubType.textButton");
@@ -9774,6 +9904,43 @@ public class Translator {
         strLine = strLine.replaceAll("csConstIds.cSNEW", "Cairo.Constants.NEW_ID");
         strLine = strLine.replaceAll("register.setID", "register.setId");
         strLine = strLine.replaceAll("C_EditGenericEdit", "Cairo.Constants.EDIT_FUNCTION");
+        strLine = strLine.replaceAll("cIABMClientGrid_ValidateRow", "validateRow");
+        strLine = strLine.replaceAll("cIABMClientGrid_NewRow", "newRow");
+        strLine = strLine.replaceAll("cIABMClientGrid_ListAdHock", "listAdHock");
+        strLine = strLine.replaceAll("cIABMClientGrid_ColumnAfterUpdate", "columnAfterUpdate");
+        strLine = strLine.replaceAll("cIABMClientGrid_ColumnClick", "columnClick");
+        strLine = strLine.replaceAll("cIABMClientGrid_DblClick", "dblClick");
+        strLine = strLine.replaceAll("cIABMClientGrid_IsEmptyRow", "isEmptyRow");
+        strLine = strLine.replaceAll("setHelpFilter", "setSelectFilter");
+        strLine = strLine.replaceAll("mPublic.gFormatDecCantidad", "Cairo.Settings.getQuantityDecimalsFormat()");
+        
+        strLine = strLine.replaceAll("csE_CuentaGrupoTipo", "Cairo.General.Constants.AccountGroupType");
+        strLine = strLine.replaceAll("cSECUECTIPOPRODUCTOVENTA", "productForSale");
+        strLine = strLine.replaceAll("cSECUECTIPOPRODUCTOCOMPRA", "productForPurchase");
+        strLine = strLine.replaceAll("cSECUECTIPOACREEDOR", "creditor");
+        strLine = strLine.replaceAll("cSECUECTIPODEUDOR", "debtor");
+        strLine = strLine.replaceAll("cSECUECTIPODEBITOAUTOMATICO", "directDebit");
+        strLine = strLine.replaceAll("cSECUECTIPOFONDOFIJO", "pettyCashFund");
+        strLine = strLine.replaceAll("c_TiFilterVenta", "Cairo.General.Constants.filterForSales");
+        strLine = strLine.replaceAll("c_TiFilterCompra", "Cairo.General.Constants.filterForPurchase");
+        strLine = strLine.replaceAll("setGridAdd", "setGridAddEnabled");
+        strLine = strLine.replaceAll("setGridEdit", "setGridEditEnabled");
+        strLine = strLine.replaceAll("setGridRemove", "setGridRemoveEnabled");
+        
+        
+        strLine = strLine.replaceAll(".ToLower\\(\\)", ".toLowerCase()");
+        strLine = strLine.replaceAll(".ToUpper\\(\\)", ".toUpperCase()");
+        strLine = strLine.replaceAll(".ToString\\(\\)", ".toString()");
+        strLine = strLine.replaceAll("RTrim\\$\\(", "Cairo.String.rtrim(");
+        strLine = strLine.replaceAll("RTrim\\(", "Cairo.String.rtrim(");
+        strLine = strLine.replaceAll("LTrim\\$\\(", "Cairo.String.ltrim(");
+        strLine = strLine.replaceAll("LTrim\\(", "Cairo.String.ltrim(");
+        strLine = strLine.replaceAll("Trim\\$\\(", "$.trim(");
+        strLine = strLine.replaceAll("Trim\\(", "$.trim(");
+        strLine = strLine.replaceAll("CInt\\(b", "Cairo.Util.boolToInt(b");
+        strLine = strLine.replaceAll("cABMUtil.pCell\\(", "Dialogs.cell(");
+        strLine = strLine.replaceAll("cell.getID\\(\\)", "cell.getId()");
+        strLine = strLine.replace("register.setId((Cairo.Util.val(cell.getValue()) > 0) ? Cairo.Util.val(cell.getValue()) : Cairo.Constants.NEW_ID));", "register.setId((Cairo.Util.val(cell.getValue()) > 0) ? Cairo.Util.val(cell.getValue()) : Cairo.Constants.NEW_ID);");
         
         return strLine;
     }
@@ -9906,12 +10073,14 @@ public class Translator {
         "// le doy bola",
         "fields.setHaveLastUpdate(",
         "fields.setHaveWhoModify(",
-        "// Error saving "
+        "// Error saving ",
+        "abmObj.setBSendRefresh",
+        "o.setDontResizeHeight("
     };
     private String removeCairoLines(String strLine) {
-        String trimedLine = G.ltrim(strLine);
+        String trimmedLine = G.ltrim(strLine);
         for (int i=0; i < discardedLines.length; i += 1) {
-            if (trimedLine.equals(discardedLines[i])) {
+            if (trimmedLine.equals(discardedLines[i])) {
                 strLine = "";
                 break;
             }
@@ -9922,7 +10091,7 @@ public class Translator {
         }
         
         for (int i=0; i < dicardBeginLikeLines.length; i += 1) {
-            if (G.beginLike(trimedLine, dicardBeginLikeLines[i])) {
+            if (G.beginLike(trimmedLine, dicardBeginLikeLines[i])) {
                 strLine = "";
                 break;
             }
@@ -9946,10 +10115,10 @@ public class Translator {
             "m_dialog.showValue(m_objAbm.getProperties().item(Cairo.General.Constants.", "NOMBRE));\n"
     };    
     private String removeCairoLinesAfterReplace(String strLine) {
-        String trimedLine = G.ltrim(strLine);        
+        String trimmedLine = G.ltrim(strLine);        
         for (int i=0; i < discardBegindAndEndLikeLines.length -1; i += 2) {
-            if (G.beginLike(trimedLine, discardBegindAndEndLikeLines[i])) {
-                if (G.endLike(trimedLine, discardBegindAndEndLikeLines[i+1])) {
+            if (G.beginLike(trimmedLine, discardBegindAndEndLikeLines[i])) {
+                if (G.endLike(trimmedLine, discardBegindAndEndLikeLines[i+1])) {
                     strLine = "";
                     break;
                 }
@@ -10269,38 +10438,81 @@ public class Translator {
     private String m_caseClassDataFields = "";
     private String m_caseClassPrefix = "";
     private String m_caseClassDataLastField = "";
+    private boolean m_discardProperty = false;
+    private String m_discardedProperties = "";
+    private boolean m_setIdFound = false;
     
     private void writeControllerClassData(String strLine) {
-      if (strLine.contains("var elem = properties.add(null, Cairo.General.Constants.")) {
-          m_caseClassDataLastField = strLine.trim().replace("var elem = properties.add(null, Cairo.General.Constants.", "");
-          m_caseClassDataLastField = m_caseClassDataLastField.substring(0, m_caseClassDataLastField.indexOf(")"));
-          
-          if (m_caseClassPrefix.isEmpty()) {
-              m_caseClassPrefix = m_caseClassDataLastField.substring(0, m_caseClassDataLastField.indexOf("_") + 1);
-          }
-          
-          if (m_caseClassDataLastField.startsWith(m_caseClassPrefix)) {
-            m_caseClassDataLastField = m_caseClassDataLastField.substring(m_caseClassPrefix.length());
-          }
-          
-          m_caseClassDataLastField = toCamel(m_caseClassDataLastField);
-          
-          m_caseClassDataFields += "              " + m_caseClassDataLastField + ": ";
+      if (strLine.contains("var elem = properties.add(null")) {
+         m_setValueFound = false;
+         if (strLine.contains("var elem = properties.add(null, Cairo.General.Constants.")) {
+            m_discardProperty = false; 
+            m_setIdFound = false;
+                    
+            m_caseClassDataLastField = strLine.trim().replace("var elem = properties.add(null, Cairo.General.Constants.", "");
+            m_caseClassDataLastField = m_caseClassDataLastField.substring(0, m_caseClassDataLastField.indexOf(")"));
+
+            if (m_caseClassPrefix.isEmpty()) {
+                m_caseClassPrefix = m_caseClassDataLastField.substring(0, m_caseClassDataLastField.indexOf("_") + 1);
+            }
+
+            if (m_caseClassDataLastField.startsWith(m_caseClassPrefix)) {
+              m_caseClassDataLastField = m_caseClassDataLastField.substring(m_caseClassPrefix.length());
+            }
+
+            m_caseClassDataLastField = toCamel(m_caseClassDataLastField);
+
+            m_caseClassDataFields += "              " + m_caseClassDataLastField + ": ";
+         }
+         else if (strLine.contains("var elem = properties.add(null, Cairo.Constants.ACTIVE")) {
+             m_discardProperty = false;
+             m_setIdFound = false;
+         }
+         else {
+             m_discardProperty = true;
+             m_discardedProperties += strLine + "\n";
+         }
       }
-      else if(strLine.contains("setValue")) {
+      else if (strLine.contains("var elem = properties.add(null, Cairo.Constants.ACTIVE")) {
+          // nothing to do
+      }
+      else if(strLine.contains("setValue") && ! m_discardProperty) {
+          m_setValueFound = true;
           String expression = strLine.substring(strLine.indexOf("(") + 1, strLine.indexOf(")"));
           if (expression.equals("m_active === true ? 1 : 0")) {
               m_caseClassDataFields += "              active: Boolean,\n";
           }
           else {
-            IdentifierInfo info = getIdentifierInfo(expression);
-            m_caseClassDataFields += info.variable.dataType + ",\n";
+            if (! m_setIdFound) {  
+                IdentifierInfo info = getIdentifierInfo(getVariableFromExpression(expression));
+                if (info != null) {
+                    m_caseClassDataFields += getScalaType(info.variable.dataType) + ",\n";
+                }
+                else {
+                    int debug = 1;
+                }
+            }
           }
-      }
-      
+      }      
       else if(strLine.contains("setSelectId")) {
+          m_setIdFound = true;
           m_caseClassDataFields = updateLastFieldType(m_caseClassDataFields, "Int");
       }
+    }
+    
+    private String getVariableFromExpression(String variable) {
+        try {
+            for (int i = variable.length()-2; i > 0; i--) {
+                if (variable.charAt(i) == '(') {
+                    variable = variable.substring(i+1);
+                    break;
+                }
+            }
+            return variable;
+        }
+        catch(RuntimeException e) {
+            return "";
+        }
     }
     
     private String updateLastFieldType(String list, String dataType) {
@@ -10321,15 +10533,22 @@ public class Translator {
             m_formDataLastField = strLine.trim().replace("var elem = properties.add(null, Cairo.General.Constants.", "");
             m_formDataLastField = m_formDataLastField.substring(0, m_formDataLastField.indexOf(")"));
             m_formData += "      C." + m_formDataLastField + " -> ";
-        } else if (strLine.contains("setValue")) {
+        } else if (strLine.contains("setValue") && ! m_discardProperty) {
             String expression = strLine.substring(strLine.indexOf("(") + 1, strLine.indexOf(")"));
             if (expression.equals("m_active === true ? 1 : 0")) {
                 m_formData += "      DBHelper.ACTIVE -> boolean,\n";
             } else if (expression.equals("m_name")) {
                 m_formData += "nonEmptyText,\n";
             } else {
-                IdentifierInfo info = getIdentifierInfo(expression);
-                m_formData += getFormType(info.variable.dataType) + ",\n";
+                if (! m_setIdFound) {
+                    IdentifierInfo info = getIdentifierInfo(getVariableFromExpression(expression));
+                    if (info != null) {
+                        m_formData += getFormType(info.variable.dataType) + ",\n";
+                    }
+                    else {
+                        int debug = 1;
+                    }
+                }
             }
         }
         else if(strLine.contains("setSelectId")) {
@@ -10350,6 +10569,8 @@ public class Translator {
     private String m_writeDataLastField = "";
     private String m_writeData = "";
     private String m_writeDataLastField2 = "";
+    private String m_writeDataFkBuffer = "";
+    private boolean m_setValueFound = false;
     
     private void writeControllerWriteData(String strLine) {
         if (strLine.contains("var elem = properties.add(null, Cairo.General.Constants.")) {
@@ -10370,20 +10591,35 @@ public class Translator {
 
             m_writeDataLastField2 = toCamel(m_writeDataLastField2);
             
-        } else if (strLine.contains("setValue")) {
+        } else if (strLine.contains("setValue") && ! m_discardProperty) {
             String expression = strLine.substring(strLine.indexOf("(") + 1, strLine.indexOf(")"));
             if (expression.equals("m_active === true ? 1 : 0")) {
                 m_writeData += "      DBHelper.ACTIVE -> Json.toJson(xxxz.active),\n";
             } else {
-                IdentifierInfo info = getIdentifierInfo(expression);
-                m_writeData += "Json.toJson(xxxz." + m_writeDataLastField2 + "),\n";
+                IdentifierInfo info = getIdentifierInfo(getVariableFromExpression(expression));
+                if (info != null) {
+                    m_writeData += "Json.toJson(xxxz." + m_writeDataLastField2 + "),\n" + m_writeDataFkBuffer;
+                    m_writeDataFkBuffer = "";
+                }
+                else {
+                    int debug = 1;
+                }                    
             }
         }
         else if(strLine.contains("setSelectId")) {
+            
             String prefix = m_writeDataLastField.substring(0, m_writeDataLastField.indexOf("_"));
-            m_writeData += "      C." + prefix
+            
+            String jsonLine = "      C." + prefix
                     + "_NAME -> Json.toJson(xxxz." 
                     + prefix.toLowerCase() + "Name),\n";
+            if (m_setValueFound) {
+                m_writeData += jsonLine;
+                m_writeDataFkBuffer = "";
+            }
+            else {
+                m_writeDataFkBuffer = jsonLine;
+            }
         }
     }
     
@@ -10407,7 +10643,7 @@ public class Translator {
 
             m_createUpdateParamList += "                       xxxz." + m_paramListLastField + ",\n";
             
-        } else if (strLine.contains("setValue")) {
+        } else if (strLine.contains("setValue") && ! m_discardProperty) {
             String expression = strLine.substring(strLine.indexOf("(") + 1, strLine.indexOf(")"));
             if (expression.equals("m_active === true ? 1 : 0")) {
                 m_createUpdateParamList += "                       xxxz.active,\n";
@@ -10699,7 +10935,7 @@ public class Translator {
           m_parserColumns2 += "              " + m_camelField + ",\n";
                   
       }
-      else if(strLine.contains("setValue")) {
+      else if(strLine.contains("setValue") && ! m_discardProperty) {
           String expression = strLine.substring(strLine.indexOf("(") + 1, strLine.indexOf(")"));
           if (expression.equals("m_active === true ? 1 : 0")) {
               m_caseClassFields += "              active: Boolean,\n";
@@ -10715,21 +10951,34 @@ public class Translator {
               
           }
           else {
-            IdentifierInfo info = getIdentifierInfo(expression);
-            m_caseClassFields += info.variable.dataType + ",\n";
-            m_caseClassNoFKFields += info.variable.dataType + ",\n";
-            m_caseClassEmptyArguments += "    " + getZeroValueForDataType(info.variable.dataType) + ",\n";
-            m_parserMap += "      SqlParser.get[" + info.variable.dataType + "](C." + m_parserMapLastField + ") ~\n";            
-            m_saveFieldList += "        Field(C." + m_parserMapLastField + ", xxxz." + m_camelField + ", FieldType." + getFormType(info.variable.dataType) + "),\n";            
+            IdentifierInfo info = getIdentifierInfo(getVariableFromExpression(expression)); 
+            if (info != null) {                
+                String scalaType = getScalaType(info.variable.dataType);
+                if (! m_setIdFound) {
+                  m_caseClassNoFKFields += scalaType + ",\n";
+                  m_caseClassFields += scalaType + ",\n";
+                }
+                m_caseClassEmptyArguments += "    " + getZeroValueForDataType(info.variable.dataType) + ",\n";
+                m_parserMap += "      SqlParser.get[" + scalaType + "](C." + m_parserMapLastField + ") ~\n";            
+                m_saveFieldList += "        Field(C." + m_parserMapLastField + ", xxxz." + m_camelField + ", FieldType." + getFormType(info.variable.dataType) + "),\n";            
+            }
+            else {
+                int debug = 1;
+            }
           }
-      }
-      
+      }      
       else if(strLine.contains("setSelectId")) {
           String fkName = m_caseClassLastField.substring(0, m_caseClassLastField.indexOf("_")).toLowerCase() + "Name";
           
+          if (m_caseClassNoFKFields.contains("ibcId:")) {
+              int debug = 1;
+          }
+          
           m_caseClassFields = updateLastFieldType(m_caseClassFields, "Int");
           m_caseClassNoFKFields = updateLastFieldType(m_caseClassNoFKFields, "Int");
-          m_caseClassEmptyArguments = chop(m_caseClassEmptyArguments, 4) + "DBHelper.NoId,\n";
+          int len = (m_caseClassEmptyArguments.endsWith(" 0,\n")) ? 3 : (m_caseClassEmptyArguments.endsWith(" null,\n")) ? 6 : 4;
+              
+          m_caseClassEmptyArguments = chop(m_caseClassEmptyArguments, len) + "DBHelper.NoId,\n";
           m_caseClassFields += "              " + fkName + ": String,\n";
           m_caseClassArgumentsFull += "      \"\",\n";
           m_parserMap = updateLastParserType(m_parserMap, "Int");
@@ -10836,6 +11085,10 @@ public class Translator {
                     .replaceAll("\\[CREATE-PARAM-LIST\\]", m_createUpdateParamList)
                 ; 
                 */ 
+    }
+    
+    private String getScalaType(String dataType) {
+        return dataType.equals("Integer") ? "Int" : dataType;
     }
     
     private String m_router = 
