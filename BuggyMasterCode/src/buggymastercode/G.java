@@ -748,6 +748,95 @@ public class G {
         return rtn;
     }
 
+    /**
+     * split a string using the characters given in
+     * the symbols parameter as separators
+     *
+     * <p>the resulting array doesn't contain the characters
+     * defined by the symbols parameter
+     *
+     *<p>      "var1.var2.var3.var4.var5 (var.var.var) "var.var.var""
+     *
+     *<p>with a "(.)" as a separator is translated as
+     *
+     *<p>      return[0] = "var1"
+     *<br>     return[1] = "var2"
+     *<br>     return[2] = "var3"
+     *<br>     return[3] = "var4"
+     *<br>     return[4] = "var5(var.var.var) "
+     *<br>     return[5] = " "var var var""
+     *
+     * @param strLine
+     * @return
+     */
+    public static String[] split4(String strLine, String symbols) {
+        boolean literalFlag = false;
+        boolean numberFlag = false;
+        String[] words = new String[500];
+        String word = "";
+        int j = 0;
+        boolean wordEnded = false;
+        int openParentheses = 0;
+
+        for (int i = 0; i < strLine.length(); i++) {
+            if (strLine.charAt(i) == '"') {
+                literalFlag = !literalFlag;
+            }
+            if (strLine.charAt(i) == '(') {
+                openParentheses++;
+            }
+            else if (strLine.charAt(i) == '(') {
+                openParentheses--;
+                if (openParentheses < 0) {
+                    int debug =1;
+                }
+            }
+            
+            if (!literalFlag && openParentheses == 0) {
+
+                if (strLine.charAt(i) == '#') {
+                    numberFlag = !numberFlag;
+                }
+
+                if (!numberFlag) {
+
+                    if (symbols.contains(String.valueOf(strLine.charAt(i)))) {
+                        wordEnded = true;
+                    }
+                    if (wordEnded) {
+                        if (!word.isEmpty()) {
+                            words[j] = word;
+                            word = "";
+                            j++;
+                        }
+                        wordEnded = false;
+                        if (!word.isEmpty()) {
+                            word = "";
+                        }
+                    }
+                    else {
+                        word += String.valueOf(strLine.charAt(i));
+                    }
+                }
+                else {
+                    word += String.valueOf(strLine.charAt(i));
+                }
+            }
+            else {
+                word += String.valueOf(strLine.charAt(i));
+            }
+        }
+        if (!word.isEmpty()) {
+            words[j] = word;
+            j++;
+        }
+        String[] rtn = new String[j];
+        for (int i = 0; i < j; i++) {
+            rtn[i] = words[i];
+        }
+        return rtn;
+    }
+    
     private static int addWord(String word, String strLine, String[] words, int i, int j) {
         if (!word.isEmpty()) {
             /*if (j >= words.length) {

@@ -194,6 +194,8 @@ public class Translator {
     private boolean m_catchBlockIsOpen = false;
     
     private boolean m_inCairoValidate = false;
+    private boolean m_inCairoValidateItems = false;
+    private boolean m_inCairoIsEmptyRow = false;
     private boolean m_inCairoSave = false;
     private boolean m_inCairoSaveItems = false;
     private boolean m_inCairoShowDoc = false;
@@ -201,6 +203,7 @@ public class Translator {
     private boolean m_inCairoDestroy = false;
     private boolean m_inCairoMessageEx = false;
     private boolean m_inCairoLoad = false;
+    private boolean m_inCairoPLoad = false;
     private boolean m_inCairoLoadCollection = false;    
     private String m_refreshCollection = "";
     private boolean m_inCairoDelete = false;
@@ -223,6 +226,7 @@ public class Translator {
         "cIABMClient_MessageEx", "messageEx",
         "cIABMClient_DiscardChanges", "discardChanges",
         "cIABMClient_ListAdHock", "_REMOVE_",
+        "cIABMClientGrid_ColumnCancelEdit", "_REMOVE_",
         "cIABMClient_Load", "_REMOVE_",
         "cIABMClient_PropertyChange", "propertyChange",
         "cIABMClient_Save", "save",
@@ -869,11 +873,11 @@ public class Translator {
     private String translateLine(String strLine) {
         
         // debug
-        /*
-        if (G.beginLike(strLine.trim(), "With m_ObjAbm.Properties(cscProCodigo)")) {
-            int i = 9999;
-        }
-        */
+        
+        //if (G.beginLike(strLine.trim(), "With .Add(Nothing, rs(cscPrtId).Value)")) {
+        //    int i = 9999;
+        //}
+        
         
         // two kind of sentences
             // In function
@@ -3600,7 +3604,11 @@ public class Translator {
                     workLine = "";
                 }
             }
-            String[] words = G.split3(workLine,".");
+            // debug
+            // String[] words = G.split3(workLine,".");
+            String[] words = G.split4(workLine,".");
+            // debug
+            
             if (m_collWiths.size() > 0 && startWithPeriod) {
                 parent = m_collWiths.get(m_collWiths.size()-1).dataType;
                 parentJavaName = m_collWiths.get(m_collWiths.size()-1).getJavaName() + ".";
@@ -3725,7 +3733,9 @@ public class Translator {
                             else {
                                 varName = varName.equals("w_add") ? "elem" : varName;
                             }
-                            varName = varName.equals("w_item") ? "property" : varName;
+                            if (!m_function.getJavaName().startsWith("pLoad")) {
+                                varName = varName.equals("w_item") ? "property" : varName;
+                            }
                             varName = varName.equals("w_properties") ? "properties" : varName;
                             var.setJavaName(varName);
                             strLine = prefix
@@ -3908,7 +3918,7 @@ public class Translator {
                     m_classObject.setJavaName("");
                     m_classObject.getClassIdFromClassName();
                     String itemDataType = m_classObject.getDataTypeOfCollectionItem();
-                    if (!itemDataType.isEmpty()) {
+                    if (!itemDataType.isEmpty() && identifier.startsWith("Properties")) {
                         Function fun = new Function();
                         fun.setJavaClassName(function.getReturnType().dataType);
                         fun.getReturnType().setJavaNameWithoutValidate("getProperties().item");
@@ -6957,6 +6967,11 @@ public class Translator {
             functionType = "";
             secondFunctionSpace = "";
             javaScriptDeclaration = " = function";
+            
+            if (functionName.startsWith("pIsEmptyRow")
+                    || functionName.startsWith("pLoad")) {
+                todoByRef = "";
+            }
         }
 
         return functionScope + firstFunctionSpace
@@ -9263,6 +9278,8 @@ public class Translator {
 
     private void initInCairoFlags() {
         m_inCairoValidate = false;
+        m_inCairoValidateItems = false;
+        m_inCairoIsEmptyRow = false;
         m_inCairoSave = false;
         m_inCairoSaveItems = false;
         m_inCairoShowDoc = false;
@@ -9270,6 +9287,7 @@ public class Translator {
         m_inCairoDestroy = false;
         m_inCairoMessageEx = false;
         m_inCairoLoad = false;
+        m_inCairoPLoad = false;
         m_inCairoLoadCollection = false;
         m_refreshCollection = "";
         m_inCairoDelete = false;
@@ -9328,12 +9346,27 @@ public class Translator {
         }
         else if (name.contains("pSaveItems")) {
             m_inCairoSaveItems = true;
+        }
+        else if (name.contains("pValidateRow")) {
+            m_inCairoValidateItems = true;
+        }        
+        else if (name.contains("pIsEmptyRow")) {
+            m_inCairoIsEmptyRow = true;
+        }        
+        else if (name.contains("pLoad")) {
+            m_inCairoPLoad = true;
         }        
     }
     
     private String translateLineInCairoFunction(String strLine, String originalLine) {
         if (m_inCairoValidate) {
             return translateLineInCairoValidate(strLine);
+        }
+        if (m_inCairoValidateItems) {
+            return translateLineInCairoValidateItems(strLine);
+        }
+        if (m_inCairoIsEmptyRow) {
+            return translateLineInCairoIsEmptyRow(strLine);
         }
         else if (m_inCairoShowDoc) {
             return translateLineInCairoShowDoc(strLine);
@@ -9349,6 +9382,9 @@ public class Translator {
         }
         else if (m_inCairoLoad) {
             return translateLineInCairoLoad(strLine);
+        }
+        else if (m_inCairoPLoad) {
+            return translateLineInCairoPLoad(strLine);
         }
         else if (m_inCairoLoadCollection) {
             writeControllerClassData(strLine);
@@ -9642,8 +9678,11 @@ public class Translator {
                 m_refreshCollection += strLine;
             } else if (G.beginLike(strLine.trim(), "elem.setSelectId(")) {
                 m_refreshCollection += strLine;
+            } 
+            if (G.beginLike(strLine.trim(), "if (!pLoad")) {
+                return getTabs() + "setGrid" + getPLoadName(strLine, "(") + "(c);\n" + strLine;
             }
-            if (G.beginLike(strLine.trim(), "Const(")) {
+            else if (G.beginLike(strLine.trim(), "Const(")) {
                 return strLine
                         .replace("Const(", "var ")
                         .replace("==", "=")
@@ -9653,6 +9692,12 @@ public class Translator {
             else
                 return strLine.replace("Integer.parseInt(", "Cairo.Util.boolToInt(");
         }
+    }
+    
+    private String getPLoadName(String strLine, String sep) {
+        int i = strLine.indexOf("pLoad") + 5;
+        int j = strLine.indexOf(sep, i);
+        return strLine.substring(i, j).trim();
     }
     
     private String translateLineInCairoLoad(String strLine) {
@@ -9681,8 +9726,55 @@ public class Translator {
             m_tabCount++;
             return rtn;
         }
+        else if (G.beginLike(trimmedLine, "if (!rs.isEOF()) {")) {
+            m_tabCount--;
+            String rtn = getTabs() + "if(response.success !== true) { return false; }\n\n" + getTabs() + "if(response.data.id !== Cairo.Constants.NO_ID) {\n";
+            m_tabCount++;
+            return rtn;
+        }
         else {
             return strLine.replaceAll("rs.getFields\\(\\)", "response.data");
+        }
+    }
+    
+    private String m_pLoadName = "";
+    
+    private String translateLineInCairoPLoad(String strLine) {
+        String trimmedLine = strLine.trim();
+        if (G.beginLike(trimmedLine, "sqlstmt") ||
+                G.beginLike(trimmedLine, "var sqlstmt = null;") ||
+                G.beginLike(trimmedLine, "rs.MoveNext;") ||
+                G.beginLike(trimmedLine, "var rs = null;")) {
+            return "";
+        }
+        else if (G.beginLike(trimmedLine, "var pLoad")) {
+            m_pLoadName = getPLoadName(trimmedLine, "=");
+            m_pLoadName = unCapitalize(m_pLoadName);
+            return "      var setGrid" + capitalize(m_pLoadName) + " = function(property) {\n";
+        }
+        else if (G.beginLike(trimmedLine, "if (!Cairo.Database.openRs(sqlstmt, rs,")) {
+            return "";
+        }        
+        else if (G.beginLike(trimmedLine, "if (rs.isEOF()) {")) {
+            m_tabCount--;
+            String rtn = getTabs() + "if(response.success !== true) { return false; }\n\n" + getTabs() + "if(response.data.id === Cairo.Constants.NO_ID) {\n";
+            m_tabCount++;
+            return rtn;
+        }
+        else if (G.beginLike(trimmedLine, "while (!rs.isEOF()) {")) {
+            return getTabs() + "for(var _i = 0; _i < m_data." + m_pLoadName + ".length; _i += 1) {\n";
+        }
+        else if (G.beginLike(trimmedLine, "w_rows.clear();")) {
+            
+            return strLine + getTabs() + "return true;\n" + "      };\n\n"
+                    + "      var pLoad" + capitalize(m_pLoadName) + " = function() {\n\n"
+                    ;
+        }
+        else {
+            return strLine
+                    .replaceAll("rs.getFields\\(\\)", "m_data." + m_pLoadName + "[_i]")
+                    .replaceAll("propiedad", "property")
+                    ;
         }
     }
     
@@ -9771,6 +9863,33 @@ public class Translator {
         else
             return strLine.replace("C_ValidateRow", "Cairo.Constants.VALIDATE_ROW_FUNCTION");
     }
+    
+    private String translateLineInCairoValidateItems(String strLine) {
+        if (strLine.trim().equals("return true;"))
+            return strLine.replaceAll("return true;", "return Cairo.Promises.resolvedPromise(true);");
+        else if (strLine.trim().equals("return null;"))
+            return "";
+        else if (strLine.trim().equals("var strRow = null;"))
+            return "";
+        else if (strLine.trim().equals("strRow = \" (Fila \"+ rowIndex.toString()+ \")\";"))
+            return getTabs() + "var strRow = \" (Row: \" + rowIndex.toString() + \")\";\n";
+        else if (G.beginLike(strLine.trim(), "cWindow.msgInfo(")) {
+            strLine = strLine.replaceAll("cWindow.msgInfo\\(","return Cairo.Modal.showInfo(");
+            strLine = strLine.replaceAll("\\);", ").then(function() {return false;});");
+            return strLine;
+        }
+        else
+            return strLine.replace("C_ValidateRow", "Cairo.Constants.VALIDATE_ROW_FUNCTION");
+    }
+    
+    private String translateLineInCairoIsEmptyRow(String strLine) {
+        if (strLine.trim().equals("var bRowIsEmpty = null;"))
+            return "";
+        else if (strLine.trim().equals("bRowIsEmpty = true;"))
+            return getTabs() + "var bRowIsEmpty = true;\n";
+        else
+            return strLine;
+    }    
 
     String[] lines = {
         "var abmGen = null;",
@@ -9850,6 +9969,7 @@ public class Translator {
         strLine = replaceIdentifierToLowerCase(strLine, "csTypes.cS", "Cairo.Constants.Types.");
         
         strLine = strLine.replaceAll("Cairo.Constants.c_DebeIndicarNombre", "Cairo.Constants.MUST_SET_A_NAME");
+        strLine = strLine.replaceAll("Cairo.Constants.c_DebeIndicarCodigo", "Cairo.Constants.MUST_SET_A_CODE");
         strLine = strLine.replaceAll("c_get_codigo_from_id", "Cairo.Constants.GET_CODE_FROM_ID");
         strLine = strLine.replaceAll("\\(C_C\\+", "(Cairo.Constants.COPY_OF +");
         strLine = strLine.replaceAll("C_ShowDocDigital,", "Cairo.Constants.SHOW_DOCUMENTS_FUNCTION,");
@@ -9911,6 +10031,14 @@ public class Translator {
         strLine = strLine.replaceAll("cIABMClientGrid_ColumnClick", "columnClick");
         strLine = strLine.replaceAll("cIABMClientGrid_DblClick", "dblClick");
         strLine = strLine.replaceAll("cIABMClientGrid_IsEmptyRow", "isEmptyRow");
+        
+        strLine = strLine.replaceAll("cIABMClientGrid_ColumnAfterEdit", "columnAfterEdit");
+        strLine = strLine.replaceAll("cIABMClientGrid_ColumnBeforeEdit", "columnBeforeEdit");
+        strLine = strLine.replaceAll("cIABMClientGrid_ColumnButtonClick", "columnButtonClick");
+        strLine = strLine.replaceAll("cIABMClientGrid_ColumnCancelEdit", "isEmptyRow");
+        strLine = strLine.replaceAll("cIABMClientGrid_DeleteRow", "deleteRow");
+        
+        
         strLine = strLine.replaceAll("setHelpFilter", "setSelectFilter");
         strLine = strLine.replaceAll("mPublic.gFormatDecCantidad", "Cairo.Settings.getQuantityDecimalsFormat()");
         
@@ -9935,11 +10063,13 @@ public class Translator {
         strLine = strLine.replaceAll("RTrim\\(", "Cairo.String.rtrim(");
         strLine = strLine.replaceAll("LTrim\\$\\(", "Cairo.String.ltrim(");
         strLine = strLine.replaceAll("LTrim\\(", "Cairo.String.ltrim(");
-        strLine = strLine.replaceAll("Trim\\$\\(", "$.trim(");
-        strLine = strLine.replaceAll("Trim\\(", "$.trim(");
+        strLine = strLine.replaceAll("Trim\\$\\(", "\\$.trim(");
+        strLine = strLine.replaceAll("Trim\\(", "\\$.trim(");
         strLine = strLine.replaceAll("CInt\\(b", "Cairo.Util.boolToInt(b");
         strLine = strLine.replaceAll("cABMUtil.pCell\\(", "Dialogs.cell(");
         strLine = strLine.replaceAll("cell.getID\\(\\)", "cell.getId()");
+        strLine = strLine.replaceAll("\\(csTalonario\\)", "\\(Cairo.Tables.TALONARIO\\)");
+        strLine = strLine.replaceAll("getHelpValueProcess", "getSelectIntValue");
         strLine = strLine.replace("register.setId((Cairo.Util.val(cell.getValue()) > 0) ? Cairo.Util.val(cell.getValue()) : Cairo.Constants.NEW_ID));", "register.setId((Cairo.Util.val(cell.getValue()) > 0) ? Cairo.Util.val(cell.getValue()) : Cairo.Constants.NEW_ID);");
         
         return strLine;
@@ -10075,7 +10205,8 @@ public class Translator {
         "fields.setHaveWhoModify(",
         "// Error saving ",
         "abmObj.setBSendRefresh",
-        "o.setDontResizeHeight("
+        "o.setDontResizeHeight(",
+        "o.setDontResize("
     };
     private String removeCairoLines(String strLine) {
         String trimmedLine = G.ltrim(strLine);
@@ -10486,7 +10617,8 @@ public class Translator {
             if (! m_setIdFound) {  
                 IdentifierInfo info = getIdentifierInfo(getVariableFromExpression(expression));
                 if (info != null) {
-                    m_caseClassDataFields += getScalaType(info.variable.dataType) + ",\n";
+                    String dataType = info.variable != null ? info.variable.dataType : info.function.getReturnType().dataType;
+                    m_caseClassDataFields += getScalaType(dataType) + ",\n";
                 }
                 else {
                     int debug = 1;
@@ -10543,7 +10675,8 @@ public class Translator {
                 if (! m_setIdFound) {
                     IdentifierInfo info = getIdentifierInfo(getVariableFromExpression(expression));
                     if (info != null) {
-                        m_formData += getFormType(info.variable.dataType) + ",\n";
+                        String dataType = info.variable != null ? info.variable.dataType : info.function.getReturnType().dataType;
+                        m_formData += getFormType(dataType) + ",\n";
                     }
                     else {
                         int debug = 1;
@@ -10608,17 +10741,19 @@ public class Translator {
         }
         else if(strLine.contains("setSelectId")) {
             
-            String prefix = m_writeDataLastField.substring(0, m_writeDataLastField.indexOf("_"));
-            
-            String jsonLine = "      C." + prefix
-                    + "_NAME -> Json.toJson(xxxz." 
-                    + prefix.toLowerCase() + "Name),\n";
-            if (m_setValueFound) {
-                m_writeData += jsonLine;
-                m_writeDataFkBuffer = "";
-            }
-            else {
-                m_writeDataFkBuffer = jsonLine;
+            if(!m_writeDataLastField.isEmpty()) {
+                String prefix = m_writeDataLastField.substring(0, m_writeDataLastField.indexOf("_"));
+
+                String jsonLine = "      C." + prefix
+                        + "_NAME -> Json.toJson(xxxz." 
+                        + prefix.toLowerCase() + "Name),\n";
+                if (m_setValueFound) {
+                    m_writeData += jsonLine;
+                    m_writeDataFkBuffer = "";
+                }
+                else {
+                    m_writeDataFkBuffer = jsonLine;
+                }
             }
         }
     }
@@ -10952,15 +11087,16 @@ public class Translator {
           }
           else {
             IdentifierInfo info = getIdentifierInfo(getVariableFromExpression(expression)); 
-            if (info != null) {                
-                String scalaType = getScalaType(info.variable.dataType);
+            if (info != null) {
+                String dataType = info.variable != null ? info.variable.dataType : info.function.getReturnType().dataType;
+                String scalaType = getScalaType(dataType);
                 if (! m_setIdFound) {
                   m_caseClassNoFKFields += scalaType + ",\n";
                   m_caseClassFields += scalaType + ",\n";
                 }
-                m_caseClassEmptyArguments += "    " + getZeroValueForDataType(info.variable.dataType) + ",\n";
+                m_caseClassEmptyArguments += "    " + getZeroValueForDataType(dataType) + ",\n";
                 m_parserMap += "      SqlParser.get[" + scalaType + "](C." + m_parserMapLastField + ") ~\n";            
-                m_saveFieldList += "        Field(C." + m_parserMapLastField + ", xxxz." + m_camelField + ", FieldType." + getFormType(info.variable.dataType) + "),\n";            
+                m_saveFieldList += "        Field(C." + m_parserMapLastField + ", xxxz." + m_camelField + ", FieldType." + getFormType(dataType) + "),\n";            
             }
             else {
                 int debug = 1;
@@ -10968,25 +11104,28 @@ public class Translator {
           }
       }      
       else if(strLine.contains("setSelectId")) {
-          String fkName = m_caseClassLastField.substring(0, m_caseClassLastField.indexOf("_")).toLowerCase() + "Name";
-          
-          if (m_caseClassNoFKFields.contains("ibcId:")) {
-              int debug = 1;
-          }
-          
-          m_caseClassFields = updateLastFieldType(m_caseClassFields, "Int");
-          m_caseClassNoFKFields = updateLastFieldType(m_caseClassNoFKFields, "Int");
-          int len = (m_caseClassEmptyArguments.endsWith(" 0,\n")) ? 3 : (m_caseClassEmptyArguments.endsWith(" null,\n")) ? 6 : 4;
-              
-          m_caseClassEmptyArguments = chop(m_caseClassEmptyArguments, len) + "DBHelper.NoId,\n";
-          m_caseClassFields += "              " + fkName + ": String,\n";
-          m_caseClassArgumentsFull += "      \"\",\n";
-          m_parserMap = updateLastParserType(m_parserMap, "Int");
-          m_parserMap += "      SqlParser.get[String](C." + m_caseClassLastField.substring(0, m_caseClassLastField.indexOf("_")).toUpperCase() + "_NAME" + ") ~\n";
-          m_parserColumns += "              " + fkName + " ~\n";
-          m_parserColumns2 += "              " + fkName + ",\n";
+          int t = m_caseClassLastField.indexOf("_");
+          if(t >= 0) {
+            String fkName = m_caseClassLastField.substring(0, t).toLowerCase() + "Name";
 
-          m_saveFieldList = updateLastSaveListType(m_saveFieldList, "id");
+            if (m_caseClassNoFKFields.contains("ibcId:")) {
+                int debug = 1;
+            }
+
+            m_caseClassFields = updateLastFieldType(m_caseClassFields, "Int");
+            m_caseClassNoFKFields = updateLastFieldType(m_caseClassNoFKFields, "Int");
+            int len = (m_caseClassEmptyArguments.endsWith(" 0,\n")) ? 3 : (m_caseClassEmptyArguments.endsWith(" null,\n")) ? 6 : 4;
+
+            m_caseClassEmptyArguments = chop(m_caseClassEmptyArguments, len) + "DBHelper.NoId,\n";
+            m_caseClassFields += "              " + fkName + ": String,\n";
+            m_caseClassArgumentsFull += "      \"\",\n";
+            m_parserMap = updateLastParserType(m_parserMap, "Int");
+            m_parserMap += "      SqlParser.get[String](C." + m_caseClassLastField.substring(0, m_caseClassLastField.indexOf("_")).toUpperCase() + "_NAME" + ") ~\n";
+            m_parserColumns += "              " + fkName + " ~\n";
+            m_parserColumns2 += "              " + fkName + ",\n";
+
+            m_saveFieldList = updateLastSaveListType(m_saveFieldList, "id");
+          }
       }
     }
     
